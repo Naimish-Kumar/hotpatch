@@ -1,0 +1,58 @@
+# HotPatch OTA — Docker Compose (Development)
+# Start all services: docker-compose up -d
+# Logs: docker-compose logs -f api
+
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://hotpatch:hotpatch_dev@db:5432/hotpatch?sslmode=disable
+      JWT_SECRET: hotpatch-dev-secret-key-change-in-production-min32chars
+      S3_BUCKET: hotpatch-bundles
+      S3_ENDPOINT: https://your-account-id.r2.cloudflarestorage.com
+      S3_REGION: auto
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: development
+      PORT: 8080
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: hotpatch
+      POSTGRES_PASSWORD: hotpatch_dev
+      POSTGRES_DB: hotpatch
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotpatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:

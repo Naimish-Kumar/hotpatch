@@ -1,0 +1,27 @@
+{
+    "name": "rn-ota-sdk",
+    "version": "0.1.0",
+    "description": "HotPatch OTA SDK for React Native",
+    "main": "lib/index.js",
+    "types": "lib/types.d.ts",
+    "scripts": {
+        "build": "tsc"
+    },
+    "keywords": [
+        "react-native",
+        "ota",
+        "hotpatch",
+        "update"
+    ],
+    "author": "HotPatch Team",
+    "license": "MIT",
+    "peerDependencies": {
+        "react": "*",
+        "react-native": "*"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0",
+        "@types/react": "^18.0.0",
+        "@types/react-native": "^0.72.0"
+    }
+}

@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 180" width="480" height="180">
+  <defs>
+    <!-- Main gradient for icon background -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0F2744;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1A4A7A;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Cyan accent gradient -->
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00D4FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0099CC;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Arrow gradient -->
+    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#00E5FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0077AA;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Glow filter for icon -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Subtle drop shadow for icon box -->
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+
+    <!-- Clip path for icon rounded rect -->
+    <clipPath id="iconClip">
+      <rect x="12" y="12" width="136" height="136" rx="24" ry="24"/>
+    </clipPath>
+  </defs>
+
+  <!-- ── ICON BOX ── -->
+  <!-- Outer shadow -->
+  <rect x="12" y="12" width="136" height="136" rx="24" ry="24" fill="url(#bgGrad)" filter="url(#shadow)"/>
+
+  <!-- Subtle grid pattern inside icon -->
+  <g clip-path="url(#iconClip)" opacity="0.08">
+    <line x1="12" y1="40"  x2="148" y2="40"  stroke="#00D4FF" stroke-width="1"/>
+    <line x1="12" y1="68"  x2="148" y2="68"  stroke="#00D4FF" stroke-width="1"/>
+    <line x1="12" y1="96"  x2="148" y2="96"  stroke="#00D4FF" stroke-width="1"/>
+    <line x1="12" y1="124" x2="148" y2="124" stroke="#00D4FF" stroke-width="1"/>
+    <line x1="40"  y1="12" x2="40"  y2="148" stroke="#00D4FF" stroke-width="1"/>
+    <line x1="68"  y1="12" x2="68"  y2="148" stroke="#00D4FF" stroke-width="1"/>
+    <line x1="96"  y1="12" x2="96"  y2="148" stroke="#00D4FF" stroke-width="1"/>
+    <line x1="124" y1="12" x2="124" y2="148" stroke="#00D4FF" stroke-width="1"/>
+  </g>
+
+  <!-- Icon border accent -->
+  <rect x="12" y="12" width="136" height="136" rx="24" ry="24"
+        fill="none" stroke="url(#accentGrad)" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- ── MAIN ICON: Shield + Lightning bolt ── -->
+  <!-- Shield shape -->
+  <path d="M80 32 L112 44 L112 80 Q112 108 80 122 Q48 108 48 80 L48 44 Z"
+        fill="none" stroke="url(#accentGrad)" stroke-width="3"
+        stroke-linejoin="round" filter="url(#glow)" opacity="0.9"/>
+
+  <!-- Shield fill (subtle) -->
+  <path d="M80 32 L112 44 L112 80 Q112 108 80 122 Q48 108 48 80 L48 44 Z"
+        fill="#00D4FF" opacity="0.06"/>
+
+  <!-- Lightning bolt centered in shield -->
+  <path d="M86 50 L72 80 L82 80 L74 110 L96 74 L84 74 L96 50 Z"
+        fill="url(#arrowGrad)" filter="url(#glow)"/>
+
+  <!-- Small OTA dots (representing wireless signal) -->
+  <circle cx="80" cy="136" r="2.5" fill="#00D4FF" opacity="0.9"/>
+  <path d="M72 130 Q80 124 88 130" fill="none" stroke="#00D4FF" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  <path d="M66 125 Q80 116 94 125" fill="none" stroke="#00D4FF" stroke-width="1.5" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- ── WORDMARK ── -->
+  <!-- "Hot" in white bold -->
+  <text x="168" y="88"
+        font-family="'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif"
+        font-size="52" font-weight="800" letter-spacing="-1"
+        fill="#FFFFFF">Hot</text>
+
+  <!-- "Patch" in cyan -->
+  <text x="262" y="88"
+        font-family="'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif"
+        font-size="52" font-weight="800" letter-spacing="-1"
+        fill="url(#accentGrad)">Patch</text>
+
+  <!-- Tagline -->
+  <text x="168" y="116"
+        font-family="'Segoe UI', 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif"
+        font-size="15.5" font-weight="400" letter-spacing="4.5"
+        fill="#7BAFD4" opacity="0.85">OTA  FOR  REACT  NATIVE</text>
+
+  <!-- Thin accent line under tagline -->
+  <line x1="168" y1="124" x2="460" y2="124"
+        stroke="url(#accentGrad)" stroke-width="1" opacity="0.25"/>
+
+</svg>
