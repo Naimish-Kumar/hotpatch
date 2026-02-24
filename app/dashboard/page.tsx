@@ -72,21 +72,38 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    if (chartsInit.current || loading) return
-    chartsInit.current = true
+    if (loading) return
+    let isMounted = true
       ; (async () => {
         const { Chart, registerables } = await import('chart.js')
+        if (!isMounted) return
         Chart.register(...registerables)
         Chart.defaults.color = '#5c7a9e'
         Chart.defaults.font.family = 'JetBrains Mono,monospace'
 
         // Fetch Trends and Distribution for charts
-        const [trends, dist] = await Promise.all([
-          dashboardApi.getTrends(),
-          dashboardApi.getDistribution()
-        ])
+        let trends, dist;
+        try {
+          [trends, dist] = await Promise.all([
+            dashboardApi.getTrends(),
+            dashboardApi.getDistribution()
+          ])
+        } catch (err) {
+          console.error('Failed to fetch chart data', err)
+          return
+        }
+
+        if (!isMounted) return
+
+        const destroyExisting = (canvas: HTMLCanvasElement | null) => {
+          if (canvas) {
+            const existingChart = Chart.getChart(canvas)
+            if (existingChart) existingChart.destroy()
+          }
+        }
 
         if (lineRef.current) {
+          destroyExisting(lineRef.current)
           const ctx = lineRef.current.getContext('2d')!
           const dau = trends.daily_active_devices || []
           const labels = dau.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
@@ -107,6 +124,7 @@ export default function DashboardPage() {
         }
 
         if (donutRef.current) {
+          destroyExisting(donutRef.current)
           const ctx = donutRef.current.getContext('2d')!
           const topDist = dist.slice(0, 4)
           new Chart(ctx, {
@@ -115,6 +133,7 @@ export default function DashboardPage() {
           })
         }
       })()
+    return () => { isMounted = false }
   }, [loading])
 
   const formatVal = (key: string, val: number) => {

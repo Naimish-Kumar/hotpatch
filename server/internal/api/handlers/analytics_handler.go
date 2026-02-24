@@ -20,8 +20,16 @@ func NewAnalyticsHandler(service *services.AnalyticsService) *AnalyticsHandler {
 
 // GetOverview handles GET /analytics/overview.
 func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
-	appIDStr, _ := c.Get("app_id")
-	appID, _ := uuid.Parse(appIDStr.(string))
+	appIDStr, exists := c.Get("app_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "App ID not found in token"})
+		return
+	}
+	appID, err := uuid.Parse(appIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid app ID"})
+		return
+	}
 
 	overview, err := h.service.GetDashboardOverview(c.Request.Context(), appID)
 	if err != nil {
@@ -34,8 +42,16 @@ func (h *AnalyticsHandler) GetOverview(c *gin.Context) {
 
 // GetDistribution handles GET /analytics/distribution.
 func (h *AnalyticsHandler) GetDistribution(c *gin.Context) {
-	appIDStr, _ := c.Get("app_id")
-	appID, _ := uuid.Parse(appIDStr.(string))
+	appIDStr, exists := c.Get("app_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "App ID not found in token"})
+		return
+	}
+	appID, err := uuid.Parse(appIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid app ID"})
+		return
+	}
 
 	dist, err := h.service.GetVersionDistribution(c.Request.Context(), appID)
 	if err != nil {
@@ -48,8 +64,16 @@ func (h *AnalyticsHandler) GetDistribution(c *gin.Context) {
 
 // GetTrends handles GET /analytics/trends.
 func (h *AnalyticsHandler) GetTrends(c *gin.Context) {
-	appIDStr, _ := c.Get("app_id")
-	appID, _ := uuid.Parse(appIDStr.(string))
+	appIDStr, exists := c.Get("app_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "App ID not found in token"})
+		return
+	}
+	appID, err := uuid.Parse(appIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid app ID"})
+		return
+	}
 
 	trends, err := h.service.GetSystemTrends(c.Request.Context(), appID)
 	if err != nil {

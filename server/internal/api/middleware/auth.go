@@ -61,8 +61,17 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 		}
 
 		// Set claims in context for downstream handlers
-		c.Set("app_id", claims.AppID)
-		c.Set("role", claims.Role)
+		role := claims.Role
+		appID := claims.AppID
+
+		// If a dashboard user provides an X-App-ID header, use it instead of the User ID in the token
+		headerAppID := c.GetHeader("X-App-ID")
+		if headerAppID != "" && role == "user" {
+			appID = headerAppID
+		}
+
+		c.Set("app_id", appID)
+		c.Set("role", role)
 		c.Set("subject", claims.Subject)
 
 		c.Next()

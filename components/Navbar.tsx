@@ -5,9 +5,10 @@ import { Logo } from './Logo'
 
 const links = [
   { href: '/features', label: 'Features' },
-  { href: '/docs', label: 'How It Works' },
+  { href: '/services', label: 'Services' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/docs', label: 'Docs' },
   { href: '/pricing', label: 'Pricing' },
-  { href: '/updates', label: 'Updates' },
 ]
 
 export function Navbar() {
@@ -22,7 +23,7 @@ export function Navbar() {
       background: 'rgba(6,14,26,0.9)', backdropFilter: 'blur(18px)',
       borderBottom: '1px solid var(--border)'
     }}>
-      <Link href="/"><Logo width={200} height={44} /></Link>
+      <Link href="/" style={{ display: 'flex', alignItems: 'center', padding: '10px 0' }}><Logo width={200} height={44} /></Link>
       <ul style={{ display: 'flex', alignItems: 'center', gap: '4px', listStyle: 'none' }}>
         {links.map(l => {
           const active = path === l.href

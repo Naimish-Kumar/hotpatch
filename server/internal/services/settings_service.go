@@ -27,6 +27,9 @@ func NewSettingsService(repo *repository.SettingsRepository) *SettingsService {
 }
 
 // ── App Settings ──────────────────────────────────────
+func (s *SettingsService) GetApp(appID uuid.UUID) (*models.App, error) {
+	return s.repo.GetApp(appID)
+}
 
 func (s *SettingsService) UpdateApp(ctx context.Context, appID uuid.UUID, req *models.UpdateAppRequest) (*models.App, error) {
 	app, err := s.repo.GetApp(appID)
@@ -80,7 +83,7 @@ func (s *SettingsService) DeleteWebhook(appID, webhookID uuid.UUID) error {
 // DispatchEvent sends a webhook notification to all registered listeners.
 func (s *SettingsService) DispatchEvent(appID uuid.UUID, eventType string, payload interface{}) {
 	webhooks, _ := s.repo.ListWebhooks(appID)
-	
+
 	event := models.WebhookEvent{
 		ID:        uuid.New().String(),
 		Timestamp: time.Now(),
@@ -105,7 +108,7 @@ func (s *SettingsService) sendWebhook(url string, payload []byte) {
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode >= 400 {
 		fmt.Printf("⚠️ Webhook returned error %d for %s\n", resp.StatusCode, url)
 	}

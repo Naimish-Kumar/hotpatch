@@ -67,7 +67,7 @@ This generates an Ed25519 keypair at `~/.hotpatch/`:
 hotpatch login
 ```
 
-Enter your API endpoint and API key. The CLI exchanges this for a JWT token.
+This will open your default browser for Google Authentication. Once authorized, the CLI will automatically receive your API token and save it to your local config.
 
 ### 3. Publish a release
 

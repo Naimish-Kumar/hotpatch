@@ -21,6 +21,7 @@ export function Footer() {
           <h4 style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '20px' }}>Product</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <Link href="/features" style={linkStyle}>Features</Link>
+            <Link href="/services" style={linkStyle}>Services</Link>
             <Link href="/pricing" style={linkStyle}>Pricing</Link>
             <Link href="/updates" style={linkStyle}>Release Notes</Link>
           </div>

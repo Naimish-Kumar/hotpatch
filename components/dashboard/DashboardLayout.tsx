@@ -38,7 +38,7 @@ const navSections = [
 export function DashboardLayout({ children, title }: { children: React.ReactNode; title?: string }) {
     const pathname = usePathname()
     const router = useRouter()
-    const { app, logout, role } = useAuth()
+    const { user, app, logout, role } = useAuth()
     const [collapsed, setCollapsed] = useState(false)
     const isSuper = role === 'superadmin'
 
@@ -198,10 +198,10 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
                         }}
                     >
                         <div style={{
-                            width: '28px',
-                            height: '28px',
+                            width: '32px',
+                            height: '32px',
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg,var(--cyan),var(--blue))',
+                            background: user?.avatar_url ? `url(${user.avatar_url}) center/cover` : 'linear-gradient(135deg,var(--cyan),var(--blue))',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -209,14 +209,21 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
                             fontWeight: 700,
                             color: 'var(--navy)',
                             flexShrink: 0,
-                        }}>HP</div>
+                            border: '1px solid rgba(0,212,255,.2)'
+                        }}>
+                            {!user?.avatar_url && (user?.display_name?.slice(0, 2).toUpperCase() || 'HP')}
+                        </div>
                         {!collapsed && (
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '13px', fontWeight: 500 }}>{app?.name?.slice(0, 10) || 'User'}</div>
-                                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Pro Plan</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '13px', fontWeight: 600, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {user?.display_name || app?.name || 'User'}
+                                </div>
+                                <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    {role === 'superadmin' ? 'Superadmin' : 'Pro Plan'}
+                                </div>
                             </div>
                         )}
-                        {!collapsed && <LogOut size={14} style={{ color: 'var(--muted)' }} />}
+                        {!collapsed && <LogOut size={14} style={{ color: 'var(--muted)', marginLeft: '4px' }} />}
                     </div>
                 </div>
             </aside>

@@ -32,8 +32,14 @@ type Config struct {
 
 	// App
 	Environment        string // "development" | "production"
+	BackendURL         string
+	FrontendURL        string
 	SuperadminEmail    string
 	SuperadminPassword string
+
+	// Google OAuth
+	GoogleClientID     string
+	GoogleClientSecret string
 }
 
 // Load reads config from environment variables (with .env file support).
@@ -53,8 +59,12 @@ func Load() (*Config, error) {
 		AWSSecretKey:       getEnv("AWS_SECRET_ACCESS_KEY", ""),
 		RedisURL:           getEnv("REDIS_URL", ""),
 		Environment:        getEnv("ENVIRONMENT", "development"),
+		BackendURL:         getEnv("BACKEND_URL", "http://localhost:8080"),
+		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
 		SuperadminEmail:    getEnv("SUPERADMIN_EMAIL", "admin@hotpatch.io"),
 		SuperadminPassword: getEnv("SUPERADMIN_PASSWORD", "admin123"),
+		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 	}
 
 	if cfg.DatabaseURL == "" {

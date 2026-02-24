@@ -17,7 +17,10 @@ export default function SettingsPage() {
     const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
     useEffect(() => {
-        if (!app?.id) return
+        if (!app?.id) {
+            setLoading(false)
+            return
+        }
         fetchData()
     }, [app?.id])
 
@@ -76,6 +79,21 @@ export default function SettingsPage() {
             <DashboardLayout title="Settings">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px', color: 'var(--muted)' }}>
                     <Loader2 size={32} className="spinning" />
+                </div>
+            </DashboardLayout>
+        )
+    }
+
+    if (!app?.id) {
+        return (
+            <DashboardLayout title="Settings">
+                <div style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    height: '400px', color: 'var(--muted)', textAlign: 'center', padding: '40px'
+                }}>
+                    <Globe size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
+                    <h3 style={{ color: 'var(--white)', marginBottom: '8px' }}>No App Selected</h3>
+                    <p style={{ fontSize: '14px', maxWidth: '300px' }}>Please select or create an application from the sidebar to manage its settings.</p>
                 </div>
             </DashboardLayout>
         )

@@ -54,9 +54,20 @@ export interface DashboardStats {
     delivery_trend: number
 }
 
+export interface UserResponse {
+    id: string
+    email: string
+    display_name: string
+    avatar_url: string
+    is_verified: boolean
+}
+
 export interface LoginResponse {
     token: string
-    app: App
+    token_type: string
+    expires_in: number
+    user?: UserResponse
+    app?: App
 }
 
 // ── Analytics Models ─────────────────────────────────
@@ -175,12 +186,19 @@ export async function request<T>(
     options: RequestInit = {}
 ): Promise<T> {
     const token = getToken()
+    const storedApp = typeof window !== 'undefined' ? localStorage.getItem('hotpatch_app') : null
+    const app = storedApp ? JSON.parse(storedApp) : null
+
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(options.headers as Record<string, string> || {}),
     }
+
     if (token) {
         headers['Authorization'] = `Bearer ${token}`
+    }
+    if (app?.id) {
+        headers['X-App-ID'] = app.id
     }
 
     const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -199,8 +217,8 @@ export async function request<T>(
 
 // ── Auth ──────────────────────────────────────────────
 export const auth = {
-    async login(apiKey: string): Promise<LoginResponse> {
-        const data = await request<LoginResponse>('/api/v1/auth/token', {
+    async loginWithToken(apiKey: string): Promise<LoginResponse> {
+        const data = await request<LoginResponse>('/auth/token', {
             method: 'POST',
             body: JSON.stringify({ api_key: apiKey }),
         })
@@ -211,8 +229,18 @@ export const auth = {
         return data
     },
 
+    async login(email: string, password: string): Promise<LoginResponse> {
+        const data = await request<LoginResponse>('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+        })
+        setToken(data.token)
+        // Store user/app info if needed
+        return data
+    },
+
     async superLogin(email: string, password: string): Promise<LoginResponse> {
-        const data = await request<LoginResponse>('/auth/super/login', {
+        const data = await request<LoginResponse>('/auth/admin/login', {
             method: 'POST',
             body: JSON.stringify({ email, password }),
         })
@@ -223,15 +251,20 @@ export const auth = {
         return data
     },
 
-    async register(name: string, platform: string): Promise<App> {
-        return request<App>('/api/v1/auth/register', {
+    async register(name: string, email: string, password: string): Promise<{ message: string }> {
+        return request<{ message: string }>('/auth/register', {
             method: 'POST',
-            body: JSON.stringify({ name, platform }),
+            body: JSON.stringify({ name, email, password }),
         })
+    },
+
+    async verify(token: string): Promise<{ status: string }> {
+        return request<{ status: string }>(`/auth/verify?token=${token}`)
     },
 
     logout() {
         clearToken()
+        localStorage.removeItem('hotpatch_role')
     },
 
     isAuthenticated(): boolean {
@@ -262,16 +295,16 @@ export const releases = {
         if (params?.is_active) qs.set('is_active', params.is_active)
         if (params?.page) qs.set('page', String(params.page))
         if (params?.per_page) qs.set('per_page', String(params.per_page))
-        return request<PaginatedResponse<Release>>(`/api/v1/releases?${qs}`)
+        return request<PaginatedResponse<Release>>(`/releases?${qs}`)
     },
 
     async get(id: string): Promise<Release> {
-        return request<Release>(`/api/v1/releases/${id}`)
+        return request<Release>(`/releases/${id}`)
     },
 
     async create(formData: FormData): Promise<Release> {
         const token = getToken()
-        const res = await fetch(`${API_BASE}/api/v1/releases`, {
+        const res = await fetch(`${API_BASE}/releases`, {
             method: 'POST',
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: formData,
@@ -284,126 +317,126 @@ export const releases = {
     },
 
     async rollback(id: string): Promise<Release> {
-        return request<Release>(`/api/v1/releases/${id}/rollback`, { method: 'PATCH' })
+        return request<Release>(`/releases/${id}/rollback`, { method: 'PATCH' })
     },
 
     async updateRollout(id: string, percentage: number): Promise<void> {
-        await request(`/api/v1/releases/${id}/rollout`, {
+        await request(`/releases/${id}/rollout`, {
             method: 'PATCH',
             body: JSON.stringify({ rollout_percentage: percentage }),
         })
     },
 
     async archive(id: string): Promise<void> {
-        await request(`/api/v1/releases/${id}`, { method: 'DELETE' })
+        await request(`/releases/${id}`, { method: 'DELETE' })
     },
 }
 
 // ── Devices ──────────────────────────────────────────
 export const devices = {
     async list(appId: string): Promise<Device[]> {
-        const data = await request<{ devices: Device[] }>(`/api/v1/devices?app_id=${appId}`)
+        const data = await request<{ devices: Device[] }>(`/devices?app_id=${appId}`)
         return data.devices || []
     },
 
     async stats(appId: string): Promise<Record<string, number>> {
-        return request<Record<string, number>>(`/api/v1/installations/stats?app_id=${appId}`)
+        return request<Record<string, number>>(`/installations/stats?app_id=${appId}`)
     },
 }
 
 // ── Dashboard Stats (aggregated) ─────────────────────
 export const dashboard = {
     async getStats(): Promise<DashboardOverview> {
-        return request<DashboardOverview>('/api/v1/analytics/overview')
+        return request<DashboardOverview>('/analytics/overview')
     },
 
     async getTrends(): Promise<Record<string, DailyMetric[]>> {
-        return request<Record<string, DailyMetric[]>>('/api/v1/analytics/trends')
+        return request<Record<string, DailyMetric[]>>('/analytics/trends')
     },
 
     async getDistribution(): Promise<VersionDistribution[]> {
-        return request<VersionDistribution[]>('/api/v1/analytics/distribution')
+        return request<VersionDistribution[]>('/analytics/distribution')
     }
 }
 
 // ── Channels ─────────────────────────────────────────
 export const channels = {
     async list(): Promise<Channel[]> {
-        return request<Channel[]>('/api/v1/channels')
+        return request<Channel[]>('/channels')
     },
     async get(slug: string): Promise<Channel> {
-        return request<Channel>(`/api/v1/channels/${slug}`)
+        return request<Channel>(`/channels/${slug}`)
     },
     async create(data: { name: string, slug: string, description?: string, color?: string, auto_rollout?: boolean }): Promise<Channel> {
-        return request<Channel>('/api/v1/channels', {
+        return request<Channel>('/channels', {
             method: 'POST',
             body: JSON.stringify(data)
         })
     },
     async update(slug: string, data: Partial<Channel>): Promise<Channel> {
-        return request<Channel>(`/api/v1/channels/${slug}`, {
+        return request<Channel>(`/channels/${slug}`, {
             method: 'PATCH',
             body: JSON.stringify(data)
         })
     },
     async delete(slug: string): Promise<void> {
-        await request(`/api/v1/channels/${slug}`, { method: 'DELETE' })
+        await request(`/channels/${slug}`, { method: 'DELETE' })
     }
 }
 
 // ── Security ─────────────────────────────────────────
 export const security = {
     async listApiKeys(): Promise<ApiKey[]> {
-        return request<ApiKey[]>('/api/v1/security/api-keys')
+        return request<ApiKey[]>('/security/api-keys')
     },
     async createApiKey(name: string, expires_at?: string): Promise<{ api_key: ApiKey, raw_key: string }> {
-        return request<{ api_key: ApiKey, raw_key: string }>('/api/v1/security/api-keys', {
+        return request<{ api_key: ApiKey, raw_key: string }>('/security/api-keys', {
             method: 'POST',
             body: JSON.stringify({ name, expires_at })
         })
     },
     async deleteApiKey(id: string): Promise<void> {
-        await request(`/api/v1/security/api-keys/${id}`, { method: 'DELETE' })
+        await request(`/security/api-keys/${id}`, { method: 'DELETE' })
     },
     async listSigningKeys(): Promise<SigningKey[]> {
-        return request<SigningKey[]>('/api/v1/security/signing-keys')
+        return request<SigningKey[]>('/security/signing-keys')
     },
     async createSigningKey(name: string, public_key: string): Promise<SigningKey> {
-        return request<SigningKey>('/api/v1/security/signing-keys', {
+        return request<SigningKey>('/security/signing-keys', {
             method: 'POST',
             body: JSON.stringify({ name, public_key })
         })
     },
     async deleteSigningKey(id: string): Promise<void> {
-        await request(`/api/v1/security/signing-keys/${id}`, { method: 'DELETE' })
+        await request(`/security/signing-keys/${id}`, { method: 'DELETE' })
     },
     async listAuditLogs(): Promise<AuditLog[]> {
-        return request<AuditLog[]>('/api/v1/security/audit-logs')
+        return request<AuditLog[]>('/security/audit-logs')
     }
 }
 
 // ── Settings ─────────────────────────────────────────
 export const settings = {
     async getAppSettings(): Promise<Settings> {
-        return request<Settings>('/api/v1/settings/app')
+        return request<Settings>('/settings/app')
     },
     async updateAppSettings(name: string, platformConfigs: any): Promise<Settings> {
-        return request<Settings>('/api/v1/settings/app', {
+        return request<Settings>('/settings/app', {
             method: 'PATCH',
             body: JSON.stringify({ name, platform_configs: platformConfigs })
         })
     },
     async listWebhooks(): Promise<Webhook[]> {
-        return request<Webhook[]>('/api/v1/settings/webhooks')
+        return request<Webhook[]>('/settings/webhooks')
     },
     async createWebhook(url: string, events: string[]): Promise<{ webhook: Webhook, secret: string }> {
-        return request<{ webhook: Webhook, secret: string }>('/api/v1/settings/webhooks', {
+        return request<{ webhook: Webhook, secret: string }>('/settings/webhooks', {
             method: 'POST',
             body: JSON.stringify({ url, events: events.join(',') })
         })
     },
     async deleteWebhook(id: string): Promise<void> {
-        await request(`/api/v1/settings/webhooks/${id}`, { method: 'DELETE' })
+        await request(`/settings/webhooks/${id}`, { method: 'DELETE' })
     }
 }
 

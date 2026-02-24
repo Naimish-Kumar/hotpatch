@@ -12,6 +12,7 @@ type App struct {
 	Name      string    `json:"name" gorm:"uniqueIndex;not null;size:255"`
 	Platform  string    `json:"platform" gorm:"not null;size:10"` // "android" | "ios"
 	APIKey    string    `json:"-" gorm:"uniqueIndex;not null;size:64"`
+	OwnerID   uuid.UUID `json:"owner_id" gorm:"type:uuid;not null"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 
 	Releases []Release `json:"releases,omitempty" gorm:"foreignKey:AppID"`

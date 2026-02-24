@@ -45,7 +45,12 @@ func SetupRoutes(
 	auth := r.Group("/auth")
 	{
 		auth.POST("/token", authHandler.CreateToken)
-		auth.POST("/super/login", authHandler.SuperLogin)
+		auth.POST("/register", authHandler.Register)
+		auth.POST("/login", authHandler.Login)
+		auth.GET("/verify", authHandler.VerifyEmail)
+		auth.POST("/admin/login", authHandler.SuperLogin)
+		auth.GET("/google/login", authHandler.GoogleLogin)
+		auth.GET("/google/callback", authHandler.GoogleCallback)
 	}
 
 	// ── App registration (no JWT required for initial setup) ──
@@ -102,6 +107,7 @@ func SetupRoutes(
 		api.GET("/security/audit-logs", securityHandler.ListAuditLogs)
 
 		// Settings & Webhooks
+		api.GET("/settings/app", settingsHandler.GetAppSettings)
 		api.PATCH("/settings/app", settingsHandler.UpdateApp)
 		api.POST("/settings/webhooks", settingsHandler.CreateWebhook)
 		api.GET("/settings/webhooks", settingsHandler.ListWebhooks)

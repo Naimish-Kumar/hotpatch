@@ -1,41 +1,36 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Logo } from '@/components/Logo'
 import { useAuth } from '@/lib/auth-context'
-import { AlertTriangle, ArrowRight, Loader2, Play } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Loader2, Play, Mail, Lock, ShieldCheck } from 'lucide-react'
 
 export default function LoginPage() {
     const router = useRouter()
-    const { login, superLogin } = useAuth()
+    const searchParams = useSearchParams()
+    const { login, loginWithApiKey } = useAuth()
+
     const [apiKey, setApiKey] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
-    const [mode, setMode] = useState<'login' | 'super' | 'demo'>('login')
+    const [mode, setMode] = useState<'email' | 'apikey' | 'demo'>('email')
+    const [verified, setVerified] = useState(false)
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setLoading(true)
-        setError('')
-        try {
-            await login(apiKey)
-            router.push('/dashboard')
-        } catch (err: any) {
-            setError(err.message || 'Invalid API key. Please try again.')
-        } finally {
-            setLoading(false)
+    useEffect(() => {
+        if (searchParams.get('verified') === 'true') {
+            setVerified(true)
         }
-    }
+    }, [searchParams])
 
-    const handleSuperLogin = async (e: React.FormEvent) => {
+    const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         setError('')
         try {
-            await superLogin(email, password)
+            await login(email, password)
             router.push('/dashboard')
         } catch (err: any) {
             setError(err.message || 'Invalid email or password.')
@@ -44,18 +39,29 @@ export default function LoginPage() {
         }
     }
 
+    const handleApiKeyLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setLoading(true)
+        setError('')
+        try {
+            await loginWithApiKey(apiKey)
+            router.push('/dashboard')
+        } catch (err: any) {
+            setError(err.message || 'Invalid API key.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
     const handleDemoLogin = () => {
-        // Set demo mode — store fake token for demo dashboard
         localStorage.setItem('hotpatch_token', 'demo_token_for_preview')
-        localStorage.setItem('hotpatch_role', 'cli')
+        localStorage.setItem('hotpatch_role', 'user')
         localStorage.setItem('hotpatch_app', JSON.stringify({
             id: 'demo-app-id',
             name: 'MyApp Production',
             platform: 'android',
             created_at: new Date().toISOString(),
         }))
-        router.push('/dashboard')
-        // Force page reload to pick up the new token
         window.location.href = '/dashboard'
     }
 
@@ -69,18 +75,7 @@ export default function LoginPage() {
             position: 'relative',
             overflow: 'hidden',
         }}>
-            {/* Background effects */}
             <div className="hero-grid" />
-            <div style={{
-                position: 'absolute',
-                top: '40%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '600px',
-                height: '400px',
-                background: 'radial-gradient(ellipse, rgba(0,212,255,.06) 0%, transparent 70%)',
-                pointerEvents: 'none',
-            }} />
 
             <div className="afu" style={{
                 position: 'relative',
@@ -88,14 +83,12 @@ export default function LoginPage() {
                 width: '100%',
                 maxWidth: '420px',
             }}>
-                {/* Logo */}
                 <div style={{ textAlign: 'center', marginBottom: '40px' }}>
                     <Link href="/">
                         <Logo width={180} height={40} />
                     </Link>
                 </div>
 
-                {/* Card */}
                 <div style={{
                     background: 'var(--navy2)',
                     border: '1px solid var(--border2)',
@@ -116,7 +109,66 @@ export default function LoginPage() {
                         color: 'var(--muted)',
                         textAlign: 'center',
                         marginBottom: '28px',
-                    }}>Sign in to access your dashboard</p>
+                    }}>Sign in to manage your OTA updates</p>
+
+                    {/* Verified Alert */}
+                    {verified && (
+                        <div style={{
+                            background: 'rgba(0,212,255,.1)',
+                            border: '1px solid rgba(0,212,255,.25)',
+                            borderRadius: '8px',
+                            padding: '10px 14px',
+                            fontSize: '13px',
+                            color: 'var(--cyan)',
+                            marginBottom: '18px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                        }}>
+                            <ShieldCheck size={14} /> Email verified successfully! You can now log in.
+                        </div>
+                    )}
+
+                    {/* Google Login Button */}
+                    <button
+                        onClick={() => window.location.href = 'http://localhost:8080/auth/google/login'}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: 'white',
+                            color: 'black',
+                            border: 'none',
+                            borderRadius: '9px',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '10px',
+                            marginBottom: '20px',
+                            transition: 'all .2s'
+                        }}
+                    >
+                        <svg width="18" height="18" viewBox="0 0 18 18">
+                            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.701-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4" />
+                            <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.834.859-3.048.859-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
+                            <path d="M3.964 10.706c-.18-.54-.282-1.117-.282-1.706 0-.589.102-1.166.282-1.706V4.962H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.038l3.007-2.332z" fill="#FBBC05" />
+                            <path d="M9 3.579c1.321 0 2.508.454 3.44 1.345l2.582-2.582C13.463.891 11.426 0 9 0 5.482 0 2.443 2.048.957 4.962l3.007 2.332C4.672 5.163 6.656 3.579 9 3.579z" fill="#EA4335" />
+                        </svg>
+                        Continue with Google
+                    </button>
+
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '14px',
+                        marginBottom: '20px',
+                    }}>
+                        <div style={{ flex: 1, height: '1px', background: 'var(--border2)' }} />
+                        <span style={{ fontSize: '11px', color: 'var(--muted2)', textTransform: 'uppercase' }}>or use email</span>
+                        <div style={{ flex: 1, height: '1px', background: 'var(--border2)' }} />
+                    </div>
 
                     {/* Tabs */}
                     <div style={{
@@ -128,21 +180,21 @@ export default function LoginPage() {
                         border: '1px solid var(--border2)',
                     }}>
                         <button
-                            onClick={() => setMode('login')}
+                            onClick={() => setMode('email')}
                             style={{
-                                flex: 1, padding: '8px', borderRadius: '7px', fontSize: '13px', fontWeight: 600, border: 'none',
-                                background: mode === 'login' ? 'var(--cdim)' : 'transparent',
-                                color: mode === 'login' ? 'var(--cyan)' : 'var(--muted)',
+                                flex: 1, padding: '8px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, border: 'none',
+                                background: mode === 'email' ? 'var(--cdim)' : 'transparent',
+                                color: mode === 'email' ? 'var(--cyan)' : 'var(--muted)',
+                                cursor: 'pointer', transition: 'all .2s'
+                            }}>Email Login</button>
+                        <button
+                            onClick={() => setMode('apikey')}
+                            style={{
+                                flex: 1, padding: '8px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, border: 'none',
+                                background: mode === 'apikey' ? 'var(--cdim)' : 'transparent',
+                                color: mode === 'apikey' ? 'var(--cyan)' : 'var(--muted)',
                                 cursor: 'pointer', transition: 'all .2s'
                             }}>API Key</button>
-                        <button
-                            onClick={() => setMode('super')}
-                            style={{
-                                flex: 1, padding: '8px', borderRadius: '7px', fontSize: '13px', fontWeight: 600, border: 'none',
-                                background: mode === 'super' ? 'var(--cdim)' : 'transparent',
-                                color: mode === 'super' ? 'var(--cyan)' : 'var(--muted)',
-                                cursor: 'pointer', transition: 'all .2s'
-                            }}>Superadmin</button>
                     </div>
 
                     {error && (
@@ -162,195 +214,107 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    {mode === 'login' ? (
-                        <form onSubmit={handleLogin}>
-                            <div style={{ marginBottom: '18px' }}>
-                                <label style={{
-                                    display: 'block',
-                                    fontSize: '12px',
-                                    fontWeight: 600,
-                                    color: 'var(--muted)',
-                                    marginBottom: '6px',
-                                    letterSpacing: '.5px',
-                                    textTransform: 'uppercase',
-                                }}>API Key</label>
-                                <input
-                                    type="password"
-                                    value={apiKey}
-                                    onChange={e => setApiKey(e.target.value)}
-                                    placeholder="hp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                                    style={{
-                                        width: '100%',
-                                        padding: '11px 14px',
-                                        background: 'var(--navy)',
-                                        border: '1px solid var(--border2)',
-                                        borderRadius: '9px',
-                                        color: 'var(--white)',
-                                        fontSize: '14px',
-                                        fontFamily: 'JetBrains Mono, monospace',
-                                        outline: 'none',
-                                        transition: 'border-color .2s',
-                                    }}
-                                />
-                                <p style={{
-                                    fontSize: '11px',
-                                    color: 'var(--muted2)',
-                                    marginTop: '6px',
-                                }}>Find your API key in your terminal after running <code style={{
-                                    background: 'rgba(0,212,255,.08)',
-                                    padding: '1px 5px',
-                                    borderRadius: '3px',
-                                    fontSize: '11px',
-                                    color: 'var(--cyan)',
-                                }}>hotpatch login</code></p>
+                    {mode === 'email' ? (
+                        <form onSubmit={handleEmailLogin}>
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>Email</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Mail size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
+                                    <input
+                                        type="email"
+                                        required
+                                        value={email}
+                                        onChange={e => setEmail(e.target.value)}
+                                        placeholder="name@company.com"
+                                        style={{ width: '100%', padding: '11px 12px 11px 36px', background: 'var(--navy)', border: '1px solid var(--border2)', borderRadius: '9px', color: 'white', outline: 'none' }}
+                                    />
+                                </div>
                             </div>
-
+                            <div style={{ marginBottom: '24px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>Password</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Lock size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted2)' }} />
+                                    <input
+                                        type="password"
+                                        required
+                                        value={password}
+                                        onChange={e => setPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                        style={{ width: '100%', padding: '11px 12px 11px 36px', background: 'var(--navy)', border: '1px solid var(--border2)', borderRadius: '9px', color: 'white', outline: 'none' }}
+                                    />
+                                </div>
+                            </div>
                             <button
                                 type="submit"
-                                disabled={loading || !apiKey}
+                                disabled={loading}
                                 style={{
                                     width: '100%',
                                     padding: '12px',
-                                    background: loading ? 'var(--blue)' : 'var(--cyan)',
+                                    background: 'var(--cyan)',
                                     color: 'var(--navy)',
                                     border: 'none',
                                     borderRadius: '9px',
-                                    fontSize: '14px',
                                     fontWeight: 700,
-                                    cursor: loading ? 'wait' : 'pointer',
-                                    transition: 'all .18s',
-                                    opacity: !apiKey ? 0.5 : 1,
-                                    fontFamily: 'Inter, sans-serif',
+                                    cursor: 'pointer',
                                 }}
                             >
-                                {loading ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Signing in...</> : <><ArrowRight size={14} /> Sign In</>}
+                                {loading ? <Loader2 size={16} className="animate-spin" /> : 'Sign In'}
                             </button>
                         </form>
                     ) : (
-                        <form onSubmit={handleSuperLogin}>
-                            <div style={{ marginBottom: '16px' }}>
-                                <label style={{
-                                    display: 'block',
-                                    fontSize: '12px',
-                                    fontWeight: 600,
-                                    color: 'var(--muted)',
-                                    marginBottom: '6px',
-                                    letterSpacing: '.5px',
-                                    textTransform: 'uppercase',
-                                }}>Email</label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={e => setEmail(e.target.value)}
-                                    placeholder="admin@hotpatch.io"
-                                    style={{
-                                        width: '100%',
-                                        padding: '11px 14px',
-                                        background: 'var(--navy)',
-                                        border: '1px solid var(--border2)',
-                                        borderRadius: '9px',
-                                        color: 'var(--white)',
-                                        fontSize: '14px',
-                                        outline: 'none',
-                                    }}
-                                />
-                            </div>
-                            <div style={{ marginBottom: '24px' }}>
-                                <label style={{
-                                    display: 'block',
-                                    fontSize: '12px',
-                                    fontWeight: 600,
-                                    color: 'var(--muted)',
-                                    marginBottom: '6px',
-                                    letterSpacing: '.5px',
-                                    textTransform: 'uppercase',
-                                }}>Password</label>
+                        <form onSubmit={handleApiKeyLogin}>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>API Key</label>
                                 <input
                                     type="password"
-                                    value={password}
-                                    onChange={e => setPassword(e.target.value)}
-                                    placeholder="••••••••"
+                                    required
+                                    value={apiKey}
+                                    onChange={e => setApiKey(e.target.value)}
+                                    placeholder="hp_xxxxxxxxxxxxxxxxxxxx"
                                     style={{
                                         width: '100%',
                                         padding: '11px 14px',
                                         background: 'var(--navy)',
                                         border: '1px solid var(--border2)',
                                         borderRadius: '9px',
-                                        color: 'var(--white)',
-                                        fontSize: '14px',
+                                        color: 'white',
                                         outline: 'none',
+                                        fontFamily: 'JetBrains Mono, monospace',
+                                        fontSize: '13px'
                                     }}
                                 />
                             </div>
-
                             <button
                                 type="submit"
-                                disabled={loading || !email || !password}
+                                disabled={loading}
                                 style={{
                                     width: '100%',
                                     padding: '12px',
-                                    background: loading ? 'var(--blue)' : 'var(--cyan)',
+                                    background: 'var(--cyan)',
                                     color: 'var(--navy)',
                                     border: 'none',
                                     borderRadius: '9px',
-                                    fontSize: '14px',
                                     fontWeight: 700,
-                                    cursor: loading ? 'wait' : 'pointer',
-                                    transition: 'all .18s',
-                                    opacity: (!email || !password) ? 0.5 : 1,
-                                    fontFamily: 'Inter, sans-serif',
+                                    cursor: 'pointer',
                                 }}
                             >
-                                {loading ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Authenticating...</> : <><ArrowRight size={14} /> Superadmin Login</>}
+                                {loading ? <Loader2 size={16} className="animate-spin" /> : 'Login with Key'}
                             </button>
                         </form>
                     )}
 
-                    {/* Divider */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '14px',
-                        margin: '24px 0',
-                    }}>
-                        <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-                        <span style={{ fontSize: '11px', color: 'var(--muted2)', textTransform: 'uppercase', letterSpacing: '1px' }}>or</span>
-                        <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                    <div style={{ marginTop: '24px', textAlign: 'center' }}>
+                        <Link href="/register" style={{ fontSize: '13px', color: 'var(--cyan)', textDecoration: 'none' }}>
+                            Don't have an account? Sign up
+                        </Link>
                     </div>
-
-                    {/* Demo button */}
-                    <button
-                        onClick={handleDemoLogin}
-                        style={{
-                            width: '100%',
-                            padding: '12px',
-                            background: 'transparent',
-                            color: 'var(--cyan)',
-                            border: '1px solid var(--border2)',
-                            borderRadius: '9px',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all .18s',
-                            fontFamily: 'Inter, sans-serif',
-                        }}
-                    >
-                        <Play size={14} style={{ marginRight: '4px' }} /> Explore Demo Dashboard
-                    </button>
                 </div>
 
-                {/* Bottom link */}
-                <p style={{
-                    textAlign: 'center',
-                    fontSize: '13px',
-                    color: 'var(--muted)',
-                    marginTop: '22px',
-                }}>
-                    Don&apos;t have an account?{' '}
-                    <Link href="/docs" style={{ color: 'var(--cyan)', textDecoration: 'none', fontWeight: 500 }}>
-                        Get started →
+                <div style={{ marginTop: '24px', textAlign: 'center' }}>
+                    <Link href="/admin/login" style={{ fontSize: '12px', color: 'var(--muted2)', textDecoration: 'none' }}>
+                        Superadmin access? Login here
                     </Link>
-                </p>
+                </div>
             </div>
         </div>
     )

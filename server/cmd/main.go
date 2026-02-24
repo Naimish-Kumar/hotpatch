@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hotpatch/server/internal/api"
@@ -15,6 +16,7 @@ import (
 	"github.com/hotpatch/server/internal/storage"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -39,10 +41,23 @@ func main() {
 		gormLogger = logger.Default.LogMode(logger.Info)
 	}
 
-	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
-		Logger:                                   gormLogger,
-		DisableForeignKeyConstraintWhenMigrating: true,
-	})
+	var db *gorm.DB
+	if strings.HasSuffix(cfg.DatabaseURL, ".db") || cfg.DatabaseURL == "sqlite" {
+		db, err = gorm.Open(sqlite.Open(cfg.DatabaseURL), &gorm.Config{
+			Logger: gormLogger,
+		})
+		fmt.Println("✅ Connected to SQLite")
+	} else {
+		fmt.Println("⏳ Connecting to PostgreSQL...")
+		db, err = gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{
+			Logger:                                   gormLogger,
+			DisableForeignKeyConstraintWhenMigrating: true,
+		})
+		if err == nil {
+			fmt.Println("✅ Connected to PostgreSQL")
+		}
+	}
+
 	if err != nil {
 		log.Fatalf("❌ Failed to connect to database: %v", err)
 	}
@@ -62,6 +77,7 @@ func main() {
 	fmt.Println("⏳ Running database migrations (FKs disabled for initial setup)...")
 
 	if err := db.AutoMigrate(
+		&models.User{},
 		&models.App{},
 		&models.Channel{},
 		&models.Release{},
@@ -125,9 +141,10 @@ func main() {
 	channelService := services.NewChannelService(channelRepo)
 	analyticsService := services.NewAnalyticsService(analyticsRepo, deviceRepo, releaseRepo)
 	securityService := services.NewSecurityService(securityRepo)
+	emailService := services.NewEmailService(cfg.BackendURL)
 
 	// ── Initialize handlers ──
-	authHandler := handlers.NewAuthHandler(db, channelService, cfg.JWTSecret, cfg.JWTExpiration, cfg.SuperadminEmail, cfg.SuperadminPassword)
+	authHandler := handlers.NewAuthHandler(db, channelService, emailService, cfg.JWTSecret, cfg.JWTExpiration, cfg.SuperadminEmail, cfg.SuperadminPassword, cfg.BackendURL, cfg.FrontendURL, cfg.GoogleClientID, cfg.GoogleClientSecret)
 	adminHandler := handlers.NewAdminHandler(db)
 	releaseHandler := handlers.NewReleaseHandler(releaseService)
 	updateHandler := handlers.NewUpdateHandler(updateService)

@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <svg style={{ display: 'none' }} xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="lbg" x1="0%" y1="0%" x2="100%" y2="100%">

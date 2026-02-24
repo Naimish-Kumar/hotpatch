@@ -51,17 +51,25 @@ export default function AnalyticsPage() {
     }, [])
 
     useEffect(() => {
-        chartsRef.current.forEach(c => c?.destroy())
-        chartsRef.current = []
+        let isMounted = true
             ; (async () => {
                 const { Chart, registerables } = await import('chart.js')
+                if (!isMounted) return
                 Chart.register(...registerables)
                 Chart.defaults.color = '#5c7a9e'
                 Chart.defaults.font.family = 'JetBrains Mono,monospace'
 
                 const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
 
+                const destroyExisting = (canvas: HTMLCanvasElement | null) => {
+                    if (canvas) {
+                        const existingChart = Chart.getChart(canvas)
+                        if (existingChart) existingChart.destroy()
+                    }
+                }
+
                 if (lineRef.current && trends) {
+                    destroyExisting(lineRef.current)
                     const dau = trends.daily_active_devices || []
                     const installs = trends.installations || []
 
@@ -72,7 +80,7 @@ export default function AnalyticsPage() {
                     const ctx = lineRef.current.getContext('2d')!
                     const gC = ctx.createLinearGradient(0, 0, 0, 210); gC.addColorStop(0, 'rgba(0,212,255,.18)'); gC.addColorStop(1, 'rgba(0,212,255,0)')
                     const gG = ctx.createLinearGradient(0, 0, 0, 210); gG.addColorStop(0, 'rgba(0,229,160,.14)'); gG.addColorStop(1, 'rgba(0,229,160,0)')
-                    const c = new Chart(ctx, {
+                    new Chart(ctx, {
                         type: 'line', data: {
                             labels, datasets: [
                                 { label: 'Active Devices', data: dauData, borderColor: '#00d4ff', backgroundColor: gC, fill: true, tension: .4, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 },
@@ -80,28 +88,26 @@ export default function AnalyticsPage() {
                             ]
                         }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0a1628', borderColor: 'rgba(0,212,255,.2)', borderWidth: 1, titleColor: '#f0f6ff', bodyColor: '#5c7a9e', padding: 10, titleFont: { family: 'Inter' }, bodyFont: { family: 'Inter' } } }, scales: { x: { grid: { color: 'rgba(0,212,255,.04)' }, ticks: { maxTicksLimit: 6, font: { size: 10 } } }, y: { grid: { color: 'rgba(0,212,255,.05)' }, ticks: { font: { size: 10 } } } } }
                     })
-                    chartsRef.current.push(c)
                 }
 
                 if (pieRef.current && distribution.length > 0) {
-                    const c = new Chart(pieRef.current.getContext('2d')!, {
+                    destroyExisting(pieRef.current)
+                    new Chart(pieRef.current.getContext('2d')!, {
                         type: 'doughnut', data: { labels: distribution.map(d => d.version), datasets: [{ data: distribution.map(d => d.count), backgroundColor: ['#00d4ff', '#00e5a0', '#ffb830', '#ff4d6a', '#1a3a6b'], borderColor: '#0a1628', borderWidth: 3, hoverOffset: 5 }] },
                         options: { responsive: true, maintainAspectRatio: false, cutout: '66%', plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11, family: 'Inter' }, boxWidth: 9, boxHeight: 9 } }, tooltip: { backgroundColor: '#0a1628', borderColor: 'rgba(0,212,255,.2)', borderWidth: 1, titleColor: '#f0f6ff', bodyColor: '#5c7a9e', padding: 9 } } }
                     })
-                    chartsRef.current.push(c)
                 }
 
-                // Bar charts and Heatmaps (keep mock for now as backend doesn't provide hourly yet)
                 if (barRef.current) {
+                    destroyExisting(barRef.current)
                     const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`)
-                    const c = new Chart(barRef.current.getContext('2d')!, {
+                    new Chart(barRef.current.getContext('2d')!, {
                         type: 'bar', data: { labels: hours, datasets: [{ label: 'Installs', data: hours.map((_, i) => { const h = i; return Math.round(300 + 700 * Math.exp(-((h - 14) ** 2) / 30) + Math.random() * 120) }), backgroundColor: 'rgba(0,212,255,.45)', borderColor: 'rgba(0,212,255,.7)', borderWidth: 1, borderRadius: 3 }] },
                         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0a1628', borderColor: 'rgba(0,212,255,.2)', borderWidth: 1, titleColor: '#f0f6ff', bodyColor: '#5c7a9e', padding: 9 } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 10 } } }, y: { grid: { color: 'rgba(0,212,255,.05)' }, ticks: { font: { size: 10 } } } } }
                     })
-                    chartsRef.current.push(c)
                 }
             })()
-        return () => { chartsRef.current.forEach(c => c?.destroy()); chartsRef.current = [] }
+        return () => { isMounted = false }
     }, [period, stats, trends, distribution])
 
     const kpis = [
