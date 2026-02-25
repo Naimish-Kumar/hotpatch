@@ -39,30 +39,15 @@ public class OTAUpdateManager: NSObject, URLSessionDelegate {
     }
     
     @objc public func getBundleURL() -> URL? {
+        // Initialize CrashDetector (handles boot counter and uncaught exceptions)
+        CrashDetector.shared.initialize()
+        
         let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
         let otaDir = paths[0].appendingPathComponent("ota")
-        let crashFile = otaDir.appendingPathComponent("crash_count.json")
         
-        if !FileManager.default.fileExists(atPath: otaDir.path) {
-            try? FileManager.default.createDirectory(at: otaDir, withIntermediateDirectories: true)
-        }
-        
-        var count = 0
-        if let data = try? Data(contentsOf: crashFile),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Int] {
-            count = json["count"] ?? 0
-        }
-        
-        if count >= 2 {
-            print("[\(TAG)] Boot loop detected! Rolling back.")
-            rollback()
+        // If rollback was triggered, crash count exceeds limit
+        if CrashDetector.shared.getBootCount() >= 2 {
             return nil
-        }
-        
-        // Save incremented count
-        let newJson = ["count": count + 1]
-        if let newData = try? JSONSerialization.data(withJSONObject: newJson) {
-            try? newData.write(to: crashFile)
         }
         
         let bundleURL = otaDir.appendingPathComponent("bundle/main.jsbundle")
@@ -83,12 +68,7 @@ public class OTAUpdateManager: NSObject, URLSessionDelegate {
     }
     
     @objc public func markSuccess() {
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let crashFile = paths[0].appendingPathComponent("ota/crash_count.json")
-        let json = ["count": 0]
-        if let data = try? JSONSerialization.data(withJSONObject: json) {
-            try? data.write(to: crashFile)
-        }
+        CrashDetector.shared.markBootSuccessful()
     }
     
     private func rollback() {

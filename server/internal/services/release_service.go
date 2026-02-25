@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -78,9 +79,32 @@ func (s *ReleaseService) Create(ctx context.Context, req *models.CreateReleaseRe
 		}
 	}
 
+	// Read bundle into memory for hash and potential encryption
+	bundleData, err := io.ReadAll(bundleFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read bundle: %w", err)
+	}
+
+	finalBundleData := bundleData
+	var keyID *string
+
+	// Handle server-side encryption
+	if req.IsEncrypted {
+		if app.EncryptionKey == "" {
+			return nil, fmt.Errorf("encryption requested but no encryption key configured for app")
+		}
+
+		encryptedData, kid, err := s.encryptionService.EncryptBundle(bundleData, app.EncryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt bundle: %w", err)
+		}
+		finalBundleData = encryptedData
+		keyID = &kid
+	}
+
 	// Upload bundle to S3
 	objectKey := fmt.Sprintf("bundles/%s/%s/%s/%s.zip", appID, req.Platform, channel, req.Version)
-	_, err = s.storage.Upload(ctx, objectKey, bundleFile, "application/zip")
+	_, err = s.storage.Upload(ctx, objectKey, bytes.NewReader(finalBundleData), "application/zip")
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload bundle: %w", err)
 	}
@@ -103,8 +127,8 @@ func (s *ReleaseService) Create(ctx context.Context, req *models.CreateReleaseRe
 		IsEncrypted:       req.IsEncrypted,
 		IsPatch:           req.IsPatch,
 		BaseVersion:       req.BaseVersion,
-		KeyID:             &req.KeyID,
-		Size:              req.Size,
+		KeyID:             keyID,
+		Size:              int64(len(finalBundleData)),
 		Mandatory:         req.Mandatory,
 		RolloutPercentage: rollout,
 		IsActive:          true,

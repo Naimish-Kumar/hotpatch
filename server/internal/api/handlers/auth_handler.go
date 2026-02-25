@@ -425,12 +425,21 @@ func (h *AuthHandler) CreateApp(c *gin.Context) {
 		tier = "free"
 	}
 
+	// Generate per-app encryption key for OTA bundles
+	encryptionKeyBytes := make([]byte, 32)
+	if _, err := rand.Read(encryptionKeyBytes); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate encryption key"})
+		return
+	}
+	rawEncryptionKey := hex.EncodeToString(encryptionKeyBytes)
+
 	app := models.App{
-		ID:       uuid.New(),
-		Name:     req.Name,
-		Platform: req.Platform,
-		APIKey:   hashedAPIKey,
-		Tier:     tier,
+		ID:            uuid.New(),
+		Name:          req.Name,
+		Platform:      req.Platform,
+		APIKey:        hashedAPIKey,
+		EncryptionKey: rawEncryptionKey,
+		Tier:          tier,
 	}
 
 	// Try to get owner ID from context (if route is protected)
@@ -450,11 +459,12 @@ func (h *AuthHandler) CreateApp(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, models.AppResponse{
-		ID:        app.ID,
-		Name:      app.Name,
-		Platform:  app.Platform,
-		Tier:      app.Tier,
-		APIKey:    rawAPIKey, // Return raw key only at creation time
-		CreatedAt: app.CreatedAt,
+		ID:            app.ID,
+		Name:          app.Name,
+		Platform:      app.Platform,
+		Tier:          app.Tier,
+		APIKey:        rawAPIKey, // Return raw key only at creation time
+		EncryptionKey: rawEncryptionKey,
+		CreatedAt:     app.CreatedAt,
 	})
 }

@@ -8,12 +8,13 @@ import (
 
 // App represents a registered application in the system.
 type App struct {
-	ID       uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Name     string    `json:"name" gorm:"uniqueIndex;not null;size:255"`
-	Platform string    `json:"platform" gorm:"not null;size:10"` // "android" | "ios"
-	APIKey   string    `json:"-" gorm:"uniqueIndex;not null;size:64"`
-	OwnerID  uuid.UUID `json:"owner_id" gorm:"type:uuid;not null"`
-	Tier     string    `json:"tier" gorm:"not null;size:20;default:'free'"` // "free" | "pro" | "enterprise"
+	ID            uuid.UUID `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Name          string    `json:"name" gorm:"uniqueIndex;not null;size:255"`
+	Platform      string    `json:"platform" gorm:"not null;size:10"` // "android" | "ios"
+	APIKey        string    `json:"-" gorm:"uniqueIndex;not null;size:64"`
+	EncryptionKey string    `json:"-" gorm:"size:64"`
+	OwnerID       uuid.UUID `json:"owner_id" gorm:"type:uuid;not null"`
+	Tier          string    `json:"tier" gorm:"not null;size:20;default:'free'"` // "free" | "pro" | "enterprise"
 
 	// Stripe integration
 	StripeCustomerID     string    `json:"stripe_customer_id" gorm:"size:100"`
@@ -46,6 +47,7 @@ type AppResponse struct {
 	SubscriptionStatus string    `json:"subscription_status,omitempty"`
 	SubscriptionEnd    time.Time `json:"subscription_end,omitempty"`
 
-	APIKey    string    `json:"api_key,omitempty"` // Only returned on creation
-	CreatedAt time.Time `json:"created_at"`
+	APIKey        string    `json:"api_key,omitempty"`        // Only returned on creation
+	EncryptionKey string    `json:"encryption_key,omitempty"` // Only returned on creation
+	CreatedAt     time.Time `json:"created_at"`
 }

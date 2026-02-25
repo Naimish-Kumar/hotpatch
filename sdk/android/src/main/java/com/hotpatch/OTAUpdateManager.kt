@@ -53,28 +53,14 @@ object OTAUpdateManager {
     }
 
     fun getBundlePath(context: Context): String? {
-        val otaDir = File(context.filesDir, "ota")
-        if (!otaDir.exists()) otaDir.mkdirs()
+        // Initialize CrashDetector (handles boot counter and uncaught exceptions)
+        CrashDetector.initialize(context)
 
-        // Increment crash count on every launch
-        val crashCountFile = File(otaDir, "crash_count.json")
-        var count = 0
-        if (crashCountFile.exists()) {
-            try {
-                count = JSONObject(crashCountFile.readText()).optInt("count", 0)
-            } catch (e: Exception) {}
-        }
-
-        if (count >= 2) {
-            Log.e(TAG, "Boot loop detected! Rolling back to last stable version.")
-            rollback(context)
+        // If rollback was triggered, crash count exceeds limit
+        if (CrashDetector.getBootCount(context) >= 2) {
+            rollback(context) // Clean up and report
             return null
         }
-
-        // Write incremented count
-        val json = JSONObject()
-        json.put("count", count + 1)
-        crashCountFile.writeText(json.toString())
 
         val otaBundle = File(context.filesDir, "ota/bundle/index.android.bundle")
         return if (otaBundle.exists() && isVerified(context)) {
@@ -96,14 +82,7 @@ object OTAUpdateManager {
     }
 
     fun markSuccess(context: Context) {
-        val crashCountFile = File(context.filesDir, "ota/crash_count.json")
-        if (crashCountFile.exists()) {
-            try {
-                val json = JSONObject()
-                json.put("count", 0)
-                crashCountFile.writeText(json.toString())
-            } catch (e: Exception) {}
-        }
+        CrashDetector.markBootSuccessful(context)
     }
 
     private fun rollback(context: Context) {
