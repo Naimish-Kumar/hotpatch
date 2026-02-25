@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { ShieldCheck, Key, Ticket, PenLine, Hash, RotateCcw, Package, CircleCheck, Ban, Rocket, Copy, RefreshCw, X, Loader2, Plus, Trash2 } from 'lucide-react'
 import { security as securityApi, type ApiKey, type SigningKey, type AuditLog } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 
 export default function SecurityPage() {
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
@@ -16,9 +17,13 @@ export default function SecurityPage() {
 
     const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
+    const { isAuthenticated, isLoading: authLoading } = useAuth()
+
     useEffect(() => {
-        fetchData()
-    }, [])
+        if (!authLoading && isAuthenticated) {
+            fetchData()
+        }
+    }, [authLoading, isAuthenticated])
 
     async function fetchData() {
         try {

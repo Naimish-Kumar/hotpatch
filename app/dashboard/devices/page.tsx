@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { devices as devicesApi, auth, type Device } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import { Search, Monitor, Apple, Smartphone, Activity, Clock } from 'lucide-react'
 
 function timeAgo(dateStr: string): string {
@@ -21,10 +22,12 @@ export default function DevicesPage() {
     const [platformFilter, setPlatformFilter] = useState<'all' | 'android' | 'ios'>('all')
     const [search, setSearch] = useState('')
 
+    const { isAuthenticated, isLoading: authLoading, app } = useAuth()
+
     useEffect(() => {
         async function fetchDevices() {
+            if (!isAuthenticated) return
             try {
-                const app = auth.getApp()
                 const devs = await devicesApi.list(app?.id || '')
                 setDeviceList(devs || [])
             } catch (err) {
@@ -33,19 +36,21 @@ export default function DevicesPage() {
                 setLoading(false)
             }
         }
-        fetchDevices()
-    }, [])
+        if (!authLoading) {
+            fetchDevices()
+        }
+    }, [isAuthenticated, authLoading, app?.id])
 
     const filtered = deviceList.filter(d => {
         if (platformFilter !== 'all' && d.platform !== platformFilter) return false
-        if (search && !d.device_id.toLowerCase().includes(search.toLowerCase()) && !d.os_version.toLowerCase().includes(search.toLowerCase())) return false
+        if (search && !d.device_id.toLowerCase().includes(search.toLowerCase()) && !d.current_version.toLowerCase().includes(search.toLowerCase())) return false
         return true
     })
 
     const androidCount = deviceList.filter(d => d.platform === 'android').length
     const iosCount = deviceList.filter(d => d.platform === 'ios').length
     const versionCounts: Record<string, number> = {}
-    deviceList.forEach(d => { versionCounts[d.app_version] = (versionCounts[d.app_version] || 0) + 1 })
+    deviceList.forEach(d => { versionCounts[d.current_version] = (versionCounts[d.current_version] || 0) + 1 })
     const versionEntries = Object.entries(versionCounts).sort((a, b) => b[1] - a[1])
 
     return (
@@ -116,7 +121,7 @@ export default function DevicesPage() {
             <div style={{ background: 'var(--navy2)', border: '1px solid var(--border)', borderRadius: '13px', overflow: 'hidden' }}>
                 <table>
                     <thead>
-                        <tr><th>Device ID</th><th>Platform</th><th>OS Version</th><th>App Version</th><th>Last Seen</th></tr>
+                        <tr><th>Device ID</th><th>Platform</th><th>Current Version</th><th>Last Seen</th></tr>
                     </thead>
                     <tbody>
                         {filtered.map(d => (
@@ -130,8 +135,7 @@ export default function DevicesPage() {
                                     </div>
                                 </td>
                                 <td style={{ textTransform: 'capitalize', fontSize: '12px' }}>{d.platform}</td>
-                                <td style={{ fontSize: '12px', color: 'var(--muted)' }}>{d.os_version}</td>
-                                <td><span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11.5px', color: 'var(--cyan)' }}>{d.app_version}</span></td>
+                                <td><span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11.5px', color: 'var(--cyan)' }}>{d.current_version}</span></td>
                                 <td style={{ fontSize: '11px', color: 'var(--muted)' }}>{timeAgo(d.last_seen)}</td>
                             </tr>
                         ))}

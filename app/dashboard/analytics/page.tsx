@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { Timer, TrendingUp, AlertCircle, HardDrive, Users, RotateCcw } from 'lucide-react'
 import { dashboard, DashboardOverview, DailyMetric, VersionDistribution } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 
 const kpis = [
     { label: 'Avg Install Time', value: '1.2s', delta: '-0.3s', up: true, icon: Timer, iconColor: 'var(--cyan)', iconBg: 'rgba(0,212,255,.12)' },
@@ -32,8 +33,11 @@ export default function AnalyticsPage() {
     const [distribution, setDistribution] = useState<VersionDistribution[]>([])
     const chartsRef = useRef<any[]>([])
 
+    const { isAuthenticated, isLoading: authLoading } = useAuth()
+
     useEffect(() => {
         const load = async () => {
+            if (!isAuthenticated) return
             try {
                 const [s, t, d] = await Promise.all([
                     dashboard.getStats(),
@@ -43,12 +47,14 @@ export default function AnalyticsPage() {
                 setStats(s)
                 setTrends(t)
                 setDistribution(d)
-            } catch (e) {
-                console.error('Failed to load analytics', e)
+            } catch (err) {
+                console.error('Failed to load analytics', err)
             }
         }
-        load()
-    }, [])
+        if (!authLoading) {
+            load()
+        }
+    }, [isAuthenticated, authLoading])
 
     useEffect(() => {
         let isMounted = true

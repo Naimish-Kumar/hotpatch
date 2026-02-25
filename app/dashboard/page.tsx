@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { releases as releasesApi, devices as devicesApi, dashboard as dashboardApi, auth, type Release, type Device, type DailyMetric } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import { Smartphone, CheckCircle2, TrendingUp, RotateCcw, Monitor, Apple, HardDrive } from 'lucide-react'
 
 const chColor: Record<string, { bg: string; color: string }> = {
@@ -39,9 +40,11 @@ export default function DashboardPage() {
   const donutRef = useRef<HTMLCanvasElement>(null)
   const chartsInit = useRef(false)
 
+  const { isAuthenticated, isLoading: authLoading, app } = useAuth()
+
   useEffect(() => {
     async function fetchData() {
-      const app = auth.getApp()
+      if (!isAuthenticated) return
       const appId = app?.id || ''
       try {
         const [relRes, devRes, statsRes] = await Promise.allSettled([
@@ -68,8 +71,10 @@ export default function DashboardPage() {
         console.error('Failed to fetch dashboard data', err)
       } finally { setLoading(false) }
     }
-    fetchData()
-  }, [])
+    if (!authLoading) {
+      fetchData()
+    }
+  }, [isAuthenticated, authLoading, app?.id])
 
   useEffect(() => {
     if (loading) return
@@ -240,9 +245,9 @@ export default function DashboardPage() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11.5px' }}>{d.device_id}</div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '1px' }}>{d.platform} · {d.os_version}</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '1px' }}>{d.platform}</div>
               </div>
-              <div style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11.5px', color: 'var(--cyan)' }}>{d.app_version}</div>
+              <div style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11.5px', color: 'var(--cyan)' }}>{d.current_version}</div>
             </div>
           ))}
         </div>

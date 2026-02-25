@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Logo } from '@/components/Logo'
@@ -38,9 +38,15 @@ const navSections = [
 export function DashboardLayout({ children, title }: { children: React.ReactNode; title?: string }) {
     const pathname = usePathname()
     const router = useRouter()
-    const { user, app, logout, role } = useAuth()
+    const { user, app, logout, role, isAuthenticated, isLoading } = useAuth()
     const [collapsed, setCollapsed] = useState(false)
     const isSuper = role === 'superadmin'
+
+    useEffect(() => {
+        if (!isLoading && !isAuthenticated) {
+            router.push('/login')
+        }
+    }, [isAuthenticated, isLoading, router])
 
     const handleLogout = () => {
         logout()
@@ -80,26 +86,6 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
                 {/* App selector */}
                 {!collapsed && (
                     <div style={{ padding: '10px 10px 2px' }}>
-                        {isSuper && (
-                            <Link href="/admin" style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                padding: '10px 14px',
-                                background: 'rgba(255,77,106,.1)',
-                                color: 'var(--red)',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                borderRadius: '9px',
-                                textDecoration: 'none',
-                                marginBottom: '10px',
-                                border: '1px solid rgba(255,77,106,.2)',
-                                transition: 'all .2s'
-                            }}>
-                                <ShieldAlert size={14} />
-                                <span>Switch to Admin</span>
-                            </Link>
-                        )}
                         <div style={{
                             padding: '10px 14px',
                             margin: '0 0 2px',

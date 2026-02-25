@@ -40,6 +40,12 @@ type Config struct {
 	// Google OAuth
 	GoogleClientID     string
 	GoogleClientSecret string
+
+	// Stripe
+	StripeSecretKey     string
+	StripeWebhookSecret string
+	StripePriceIDPro    string
+	StripePriceIDEnt    string
 }
 
 // Load reads config from environment variables (with .env file support).
@@ -48,23 +54,27 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		Port:               getEnv("PORT", "8080"),
-		DatabaseURL:        getEnv("DATABASE_URL", ""),
-		JWTSecret:          getEnv("JWT_SECRET", ""),
-		JWTExpiration:      getEnvInt("JWT_EXPIRATION_HOURS", 72),
-		S3Bucket:           getEnv("S3_BUCKET", "hotpatch-bundles"),
-		S3Endpoint:         getEnv("S3_ENDPOINT", ""),
-		S3Region:           getEnv("S3_REGION", "auto"),
-		AWSAccessKey:       getEnv("AWS_ACCESS_KEY_ID", ""),
-		AWSSecretKey:       getEnv("AWS_SECRET_ACCESS_KEY", ""),
-		RedisURL:           getEnv("REDIS_URL", ""),
-		Environment:        getEnv("ENVIRONMENT", "development"),
-		BackendURL:         getEnv("BACKEND_URL", "http://localhost:8080"),
-		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
-		SuperadminEmail:    getEnv("SUPERADMIN_EMAIL", "admin@hotpatch.io"),
-		SuperadminPassword: getEnv("SUPERADMIN_PASSWORD", "admin123"),
-		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
-		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+		Port:                getEnv("PORT", "8080"),
+		DatabaseURL:         getEnv("DATABASE_URL", ""),
+		JWTSecret:           getEnv("JWT_SECRET", ""),
+		JWTExpiration:       getEnvInt("JWT_EXPIRATION_HOURS", 72),
+		S3Bucket:            getEnv("S3_BUCKET", "hotpatch-bundles"),
+		S3Endpoint:          getEnv("S3_ENDPOINT", ""),
+		S3Region:            getEnv("S3_REGION", "auto"),
+		AWSAccessKey:        getEnv("AWS_ACCESS_KEY_ID", ""),
+		AWSSecretKey:        getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		RedisURL:            getEnv("REDIS_URL", ""),
+		Environment:         getEnv("ENVIRONMENT", "development"),
+		BackendURL:          getEnv("BACKEND_URL", "http://localhost:8080"),
+		FrontendURL:         getEnv("FRONTEND_URL", "http://localhost:3000"),
+		SuperadminEmail:     getEnv("SUPERADMIN_EMAIL", "admin@hotpatch.io"),
+		SuperadminPassword:  getEnv("SUPERADMIN_PASSWORD", "admin123"),
+		GoogleClientID:      getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret:  getEnv("GOOGLE_CLIENT_SECRET", ""),
+		StripeSecretKey:     getEnv("STRIPE_SECRET_KEY", ""),
+		StripeWebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", ""),
+		StripePriceIDPro:    getEnv("STRIPE_PRICE_ID_PRO", ""),
+		StripePriceIDEnt:    getEnv("STRIPE_PRICE_ID_ENTERPRISE", ""),
 	}
 
 	if cfg.DatabaseURL == "" {

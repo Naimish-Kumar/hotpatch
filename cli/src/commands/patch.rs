@@ -38,18 +38,48 @@ pub async fn execute(
         temp_dir.join(format!("{}_to_{}.patch", old_ver, new_ver))
     };
 
-    // 3. Download bundles
+    // 3. Download and Resolve bundles (handle encryption)
     println!("  ⏬ Downloading base version {}...", old_ver.cyan());
     client.download_bundle(&old_info.bundle_url, &old_path).await?;
+    let resolved_old = if old_info.is_encrypted {
+        println!("  🔓 Decrypting base version...");
+        let key_hex = if let Some(kid) = &old_info.key_id {
+            let keys = config.encryption_keys.as_ref().context("Keyring not found")?;
+            keys.get(kid).context(format!("Encryption key {} not found in keyring", kid))?
+        } else {
+            config.encryption_key.as_ref().context("Legacy encryption key not found")?
+        };
+        let key = hex::decode(key_hex)?;
+        let dec_path = temp_dir.join(format!("{}.dec", old_ver));
+        utils::encryption::decrypt_file(&old_path, &dec_path, &key)?;
+        dec_path
+    } else {
+        old_path.clone()
+    };
     
     println!("  ⏬ Downloading target version {}...", new_ver.cyan());
     client.download_bundle(&new_info.bundle_url, &new_path).await?;
+    let resolved_new = if new_info.is_encrypted {
+        println!("  🔓 Decrypting target version...");
+        let key_hex = if let Some(kid) = &new_info.key_id {
+            let keys = config.encryption_keys.as_ref().context("Keyring not found")?;
+            keys.get(kid).context(format!("Encryption key {} not found in keyring", kid))?
+        } else {
+            config.encryption_key.as_ref().context("Legacy encryption key not found")?
+        };
+        let key = hex::decode(key_hex)?;
+        let dec_path = temp_dir.join(format!("{}.dec", new_ver));
+        utils::encryption::decrypt_file(&new_path, &dec_path, &key)?;
+        dec_path
+    } else {
+        new_path.clone()
+    };
 
     // 4. Generate diff
     println!("  Diffing layers...");
-    utils::diff::create_patch(&old_path, &new_path, &patch_path)?;
+    utils::diff::create_patch(&resolved_old, &resolved_new, &patch_path)?;
 
-    // 5. Hash and sign
+    // 5. Hash and sign (of the PLAIN patch)
     let patch_hash = utils::sha256_file(patch_path.to_str().unwrap())?;
     let patch_sig = signing::sign_file(patch_path.to_str().unwrap())?;
 
@@ -66,6 +96,8 @@ pub async fn execute(
     // Cleanup
     let _ = std::fs::remove_file(&old_path);
     let _ = std::fs::remove_file(&new_path);
+    if resolved_old != old_path { let _ = std::fs::remove_file(&resolved_old); }
+    if resolved_new != new_path { let _ = std::fs::remove_file(&resolved_new); }
 
     Ok(())
 }

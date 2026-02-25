@@ -3,6 +3,8 @@ export interface OTAConfig {
     appId: string;
     channel: string;
     checkOnLaunch?: boolean;
+    encryptionKey?: string;
+    signingKey?: string;
 }
 
 export interface UpdateCheckResponse {
@@ -12,6 +14,14 @@ export interface UpdateCheckResponse {
     signature?: string;
     mandatory?: boolean;
     version?: string;
+    isEncrypted?: boolean;
+    encryptionKeyId?: string;
+    isPatch?: boolean;
+    patchUrl?: string;
+    baseVersion?: string;
+    releaseNotes?: string;
+    rolloutPercentage?: number;
+    size?: number;
 }
 
 export interface InstallationReport {

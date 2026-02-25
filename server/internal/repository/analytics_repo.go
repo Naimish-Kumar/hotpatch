@@ -21,7 +21,7 @@ func NewAnalyticsRepository(db *gorm.DB) *AnalyticsRepository {
 // GetVersionDistribution returns counts of devices per version for an app.
 func (r *AnalyticsRepository) GetVersionDistribution(appID uuid.UUID) ([]models.VersionDistribution, error) {
 	var dist []models.VersionDistribution
-	
+
 	// Get total count first for percentage calculation
 	var total int64
 	r.db.Model(&models.Device{}).Where("app_id = ?", appID).Count(&total)
@@ -45,7 +45,7 @@ func (r *AnalyticsRepository) GetVersionDistribution(appID uuid.UUID) ([]models.
 // GetDailyActiveDevices returns the number of unique devices seen per day for the last N days.
 func (r *AnalyticsRepository) GetDailyActiveDevices(appID uuid.UUID, days int) ([]models.DailyMetric, error) {
 	var metrics []models.DailyMetric
-	
+
 	// Query to count unique devices seen each day
 	err := r.db.Table("devices").
 		Select("DATE(last_seen) as date, COUNT(*) as value").
@@ -96,10 +96,63 @@ func (r *AnalyticsRepository) GetAggregateSuccessRate(appID uuid.UUID) (float64,
 func (r *AnalyticsRepository) GetBandwidthSaved(appID uuid.UUID) (int64, error) {
 	var saved int64
 	err := r.db.Table("installations").
-		Select("SUM(releases.size - installations.download_size)").
+		Select("COALESCE(SUM(releases.size - installations.download_size), 0)").
 		Joins("JOIN releases ON installations.release_id = releases.id").
 		Where("releases.app_id = ? AND installations.is_patch = true AND installations.status = 'applied'", appID).
 		Scan(&saved).Error
 
 	return saved, err
+}
+
+// CountSuccessfulInstallations returns the total number of successful installations for an app.
+func (r *AnalyticsRepository) CountSuccessfulInstallations(appID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.db.Table("installations").
+		Joins("JOIN releases ON installations.release_id = releases.id").
+		Where("releases.app_id = ? AND installations.status = 'installed'", appID).
+		Count(&count).Error
+
+	return count, err
+}
+
+// GetDevicesGrowthRate computes the week-over-week growth rate of new devices.
+// Returns a percentage: positive = growth, negative = decline.
+func (r *AnalyticsRepository) GetDevicesGrowthRate(appID uuid.UUID) (float64, error) {
+	now := time.Now()
+	thisWeekStart := now.AddDate(0, 0, -7)
+	lastWeekStart := now.AddDate(0, 0, -14)
+
+	var thisWeek int64
+	r.db.Model(&models.Device{}).
+		Where("app_id = ? AND created_at >= ?", appID, thisWeekStart).
+		Count(&thisWeek)
+
+	var lastWeek int64
+	r.db.Model(&models.Device{}).
+		Where("app_id = ? AND created_at >= ? AND created_at < ?", appID, lastWeekStart, thisWeekStart).
+		Count(&lastWeek)
+
+	if lastWeek == 0 {
+		if thisWeek > 0 {
+			return 100.0, nil // 100% growth from zero
+		}
+		return 0.0, nil
+	}
+
+	rate := (float64(thisWeek-lastWeek) / float64(lastWeek)) * 100
+	return rate, nil
+}
+
+// GetReleaseInstallTimeline returns daily installation counts for a specific release.
+func (r *AnalyticsRepository) GetReleaseInstallTimeline(releaseID uuid.UUID, days int) ([]models.DailyMetric, error) {
+	var metrics []models.DailyMetric
+
+	err := r.db.Table("installations").
+		Select("DATE(installed_at) as date, COUNT(*) as value").
+		Where("release_id = ? AND installed_at > ?", releaseID, time.Now().AddDate(0, 0, -days)).
+		Group("DATE(installed_at)").
+		Order("date ASC").
+		Find(&metrics).Error
+
+	return metrics, err
 }

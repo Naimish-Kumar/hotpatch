@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { Rocket, FlaskConical, Tag, ArrowRightLeft, CheckCircle2, ShieldCheck, X, ArrowRight, Loader2 } from 'lucide-react'
 import { channels as channelsApi, releases as releasesApi, type Channel, type Release } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 
 const channelIcons: Record<string, any> = {
     production: Rocket,
@@ -22,8 +23,11 @@ export default function ChannelsPage() {
     const [promoteOpen, setPromoteOpen] = useState(false)
     const [loading, setLoading] = useState(true)
 
+    const { isAuthenticated, isLoading: authLoading } = useAuth()
+
     useEffect(() => {
         async function fetchData() {
+            if (!isAuthenticated) return
             try {
                 const [chs, rels] = await Promise.all([
                     channelsApi.list(),
@@ -48,8 +52,10 @@ export default function ChannelsPage() {
                 setLoading(false)
             }
         }
-        fetchData()
-    }, [])
+        if (!authLoading) {
+            fetchData()
+        }
+    }, [isAuthenticated, authLoading])
 
     if (loading) {
         return (

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Globe, Search, Filter, MoreHorizontal, ArrowUpRight } from 'lucide-react'
 import { request } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 
 interface AppInfo {
     id: string
@@ -14,8 +15,11 @@ export default function AdminApps() {
     const [apps, setApps] = useState<AppInfo[]>([])
     const [loading, setLoading] = useState(true)
 
+    const { isAuthenticated, isLoading: authLoading } = useAuth()
+
     useEffect(() => {
         const fetchApps = async () => {
+            if (!isAuthenticated) return
             try {
                 const data = await request<AppInfo[]>('/admin/apps')
                 setApps(data)
@@ -25,15 +29,17 @@ export default function AdminApps() {
                 setLoading(false)
             }
         }
-        fetchApps()
-    }, [])
+        if (!authLoading) {
+            fetchApps()
+        }
+    }, [isAuthenticated, authLoading])
 
     return (
         <div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '40px' }}>
                 <div>
                     <h2 style={{ fontSize: '32px', fontWeight: 800, fontFamily: 'Syne, sans-serif', marginBottom: '8px' }}>Global Directory</h2>
-                    <p style={{ color: 'var(--muted)' }}>Manage all {apps.length} applications registered on the platform.</p>
+                    <p style={{ color: 'var(--muted)' }}>Manage all {apps?.length || 0} applications registered on the platform.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ position: 'relative' }}>
@@ -76,7 +82,7 @@ export default function AdminApps() {
                         </tr>
                     </thead>
                     <tbody>
-                        {apps.map((app) => (
+                        {apps?.map((app) => (
                             <tr key={app.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background .15s' }} className="hover-row">
                                 <td style={{ padding: '20px 24px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -111,7 +117,7 @@ export default function AdminApps() {
                         ))}
                     </tbody>
                 </table>
-                {apps.length === 0 && !loading && (
+                {(apps?.length === 0 || !apps) && !loading && (
                     <div style={{ padding: '60px', textAlign: 'center', color: 'var(--muted)' }}>No applications registered yet.</div>
                 )}
             </div>

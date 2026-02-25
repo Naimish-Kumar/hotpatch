@@ -8,14 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hotpatch/server/internal/api/handlers"
 	"github.com/hotpatch/server/internal/api/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 // SetupRoutes configures all API routes on the Gin engine.
 func SetupRoutes(
 	r *gin.Engine,
 	jwtSecret string,
+	frontendURL string,
 	redisClient *redis.Client,
+	db *gorm.DB,
+	startTime time.Time,
 	authHandler *handlers.AuthHandler,
 	releaseHandler *handlers.ReleaseHandler,
 	updateHandler *handlers.UpdateHandler,
@@ -25,20 +30,51 @@ func SetupRoutes(
 	securityHandler *handlers.SecurityHandler,
 	settingsHandler *handlers.SettingsHandler,
 	adminHandler *handlers.AdminHandler,
+	paymentHandler *handlers.PaymentHandler,
 ) {
 	// ── Global middleware ──
+	allowedOrigins := []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	if frontendURL != "" && frontendURL != "http://localhost:3000" {
+		allowedOrigins = append(allowedOrigins, frontendURL)
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-App-Key"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-App-Key", "X-App-ID"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// Prometheus metrics
+	r.Use(middleware.PrometheusMiddleware())
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
 	// ── Health check ──
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "hotpatch-api"})
+		dbStatus := "connected"
+		sqlDB, err := db.DB()
+		if err != nil || sqlDB.Ping() != nil {
+			dbStatus = "disconnected"
+		}
+
+		redisStatus := "disabled"
+		if redisClient != nil {
+			if err := redisClient.Ping(c.Request.Context()).Err(); err != nil {
+				redisStatus = "unreachable"
+			} else {
+				redisStatus = "connected"
+			}
+		}
+
+		c.JSON(200, gin.H{
+			"status":   "ok",
+			"service":  "hotpatch-api",
+			"database": dbStatus,
+			"redis":    redisStatus,
+			"uptime":   time.Since(startTime).String(),
+		})
 	})
 
 	// ── Auth routes (no JWT required) ──
@@ -52,6 +88,9 @@ func SetupRoutes(
 		auth.GET("/google/login", authHandler.GoogleLogin)
 		auth.GET("/google/callback", authHandler.GoogleCallback)
 	}
+
+	// ── Billing Webhook (unauthenticated, Stripe signed) ──
+	r.POST("/billing/webhook", paymentHandler.HandleWebhook)
 
 	// ── App registration (no JWT required for initial setup) ──
 	r.POST("/apps", authHandler.CreateApp)
@@ -112,6 +151,10 @@ func SetupRoutes(
 		api.POST("/settings/webhooks", settingsHandler.CreateWebhook)
 		api.GET("/settings/webhooks", settingsHandler.ListWebhooks)
 		api.DELETE("/settings/webhooks/:id", settingsHandler.DeleteWebhook)
+
+		// Billing
+		api.POST("/billing/checkout", paymentHandler.CreateCheckoutSession)
+		api.POST("/billing/portal", paymentHandler.CreatePortalSession)
 	}
 
 	// ── Superadmin Panel roots (JWT + Superadmin Role required) ──
@@ -129,6 +172,14 @@ func SetupRoutes(
 		})
 
 		admin.GET("/apps", adminHandler.ListAllApps)
+		admin.PATCH("/apps/:id", adminHandler.UpdateApp)
+		admin.DELETE("/apps/:id", adminHandler.DeleteApp)
+		admin.GET("/users", adminHandler.ListAllUsers)
+		admin.DELETE("/users/:id", adminHandler.DeleteUser)
 		admin.GET("/stats", adminHandler.GetSystemStats)
+
+		// System Configuration
+		admin.GET("/settings", adminHandler.ListSettings)
+		admin.PUT("/settings/:key", adminHandler.UpdateSetting)
 	}
 }

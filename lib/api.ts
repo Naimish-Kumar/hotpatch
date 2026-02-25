@@ -28,11 +28,8 @@ export interface Device {
     app_id: string
     device_id: string
     platform: string
-    app_version: string
-    sdk_version: string
-    os_version: string
+    current_version: string
     last_seen: string
-    created_at: string
 }
 
 export interface Installation {
@@ -432,7 +429,7 @@ export const settings = {
     async createWebhook(url: string, events: string[]): Promise<{ webhook: Webhook, secret: string }> {
         return request<{ webhook: Webhook, secret: string }>('/settings/webhooks', {
             method: 'POST',
-            body: JSON.stringify({ url, events: events.join(',') })
+            body: JSON.stringify({ url, events })
         })
     },
     async deleteWebhook(id: string): Promise<void> {

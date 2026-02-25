@@ -8,8 +8,8 @@ class HotPatchSDK: NSObject {
         return false
     }
     
-    @objc func setup(_ apiUrl: String, appId: String, channel: String, encryptionKey: String?) {
-        OTAUpdateManager.shared.setup(url: apiUrl, id: appId, ch: channel, key: encryptionKey)
+    @objc func setup(_ apiUrl: String, appId: String, channel: String, encryptionKey: String?, signingKey: String?) {
+        OTAUpdateManager.shared.setup(url: apiUrl, id: appId, ch: channel, key: encryptionKey, signingKey: signingKey)
     }
     
     @objc func checkForUpdate(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {

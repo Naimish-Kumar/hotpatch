@@ -13,7 +13,7 @@ const links = [
 
 export function Navbar() {
   const path = usePathname()
-  if (path.startsWith('/dashboard') || path === '/login') return null
+  if (path.startsWith('/dashboard') || path.startsWith('/admin') || path === '/login') return null
 
   return (
     <nav style={{

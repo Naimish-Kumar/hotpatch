@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -70,6 +71,16 @@ func (h *DeviceHandler) ListDevices(c *gin.Context) {
 
 	page := 1
 	perPage := 20
+	if p := c.Query("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+	if pp := c.Query("per_page"); pp != "" {
+		if v, err := strconv.Atoi(pp); err == nil && v > 0 {
+			perPage = v
+		}
+	}
 
 	devices, total, err := h.service.ListDevices(appID, page, perPage)
 	if err != nil {

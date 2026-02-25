@@ -5,7 +5,8 @@
 
 RCT_EXTERN_METHOD(setup : (NSString *)apiUrl appId : (NSString *)
                       appId channel : (NSString *)
-                          channel encryptionKey : (NSString *)encryptionKey)
+                          channel encryptionKey : (NSString *)encryptionKey
+                              signingKey : (NSString *)signingKey)
 RCT_EXTERN_METHOD(checkForUpdate : (RCTPromiseResolveBlock)
                       resolve rejecter : (RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(applyUpdate : (NSDictionary *)updateJson resolver : (

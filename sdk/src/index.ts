@@ -12,7 +12,13 @@ class OTAClient {
     configure(config: OTAConfig) {
         this.config = config;
         if (HotPatchSDK) {
-            HotPatchSDK.setup(config.apiUrl, config.appId, config.channel);
+            HotPatchSDK.setup(
+                config.apiUrl,
+                config.appId,
+                config.channel,
+                config.encryptionKey || null,
+                config.signingKey || null
+            );
             if (config.checkOnLaunch) {
                 this.checkForUpdate();
             }

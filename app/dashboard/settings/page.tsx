@@ -6,7 +6,7 @@ import { Trash2, AlertTriangle, Loader2, Plus, Bell, Link2, Globe, Shield } from
 import { settings as settingsApi, type Webhook, type Settings } from '@/lib/api'
 
 export default function SettingsPage() {
-    const { app } = useAuth()
+    const { app, isAuthenticated, isLoading: authLoading } = useAuth()
     const [appName, setAppName] = useState('')
     const [webhooks, setWebhooks] = useState<Webhook[]>([])
     const [loading, setLoading] = useState(true)
@@ -17,12 +17,14 @@ export default function SettingsPage() {
     const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
     useEffect(() => {
-        if (!app?.id) {
-            setLoading(false)
-            return
+        if (!authLoading && isAuthenticated) {
+            if (!app?.id) {
+                setLoading(false)
+                return
+            }
+            fetchData()
         }
-        fetchData()
-    }, [app?.id])
+    }, [app?.id, authLoading, isAuthenticated])
 
     async function fetchData() {
         try {

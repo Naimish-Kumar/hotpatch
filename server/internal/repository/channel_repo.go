@@ -59,17 +59,23 @@ func (r *ChannelRepository) Delete(id uuid.UUID) error {
 	return r.db.Delete(&models.Channel{}, "id = ?", id).Error
 }
 
-// EnsureDefaultChannels creates production, staging, and beta channels if they don't exist.
-func (r *ChannelRepository) EnsureDefaultChannels(appID uuid.UUID) error {
+// EnsureDefaultChannels initializes production/staging/beta based on the app's tier.
+func (r *ChannelRepository) EnsureDefaultChannels(app *models.App) error {
 	defaults := []models.Channel{
-		{AppID: appID, Name: "Production", Slug: "production", Color: "#00e5a0", Description: "Main release channel for all users."},
-		{AppID: appID, Name: "Staging", Slug: "staging", Color: "#ffb830", Description: "Internal testing and QA channel."},
-		{AppID: appID, Name: "Beta", Slug: "beta", Color: "#00d4ff", Description: "Early access channel for beta testers."},
+		{AppID: app.ID, Name: "Production", Slug: "production", Color: "#00e5a0", Description: "Main release channel for all users."},
+	}
+
+	// Only Pro and Enterprise tiers get multiple default channels
+	if app.Tier != "free" {
+		defaults = append(defaults,
+			models.Channel{AppID: app.ID, Name: "Staging", Slug: "staging", Color: "#ffb830", Description: "Internal testing and QA channel."},
+			models.Channel{AppID: app.ID, Name: "Beta", Slug: "beta", Color: "#00d4ff", Description: "Early access channel for beta testers."},
+		)
 	}
 
 	for _, ch := range defaults {
 		var existing models.Channel
-		err := r.db.Where("app_id = ? AND slug = ?", appID, ch.Slug).First(&existing).Error
+		err := r.db.Where("app_id = ? AND slug = ?", app.ID, ch.Slug).First(&existing).Error
 		if err == gorm.ErrRecordNotFound {
 			if err := r.db.Create(&ch).Error; err != nil {
 				return err

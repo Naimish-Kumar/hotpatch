@@ -11,16 +11,32 @@ import (
 
 // ChannelService handles channel management business logic.
 type ChannelService struct {
-	repo *repository.ChannelRepository
+	repo            *repository.ChannelRepository
+	settingsService *SettingsService
 }
 
 // NewChannelService creates a new ChannelService.
-func NewChannelService(repo *repository.ChannelRepository) *ChannelService {
-	return &ChannelService{repo: repo}
+func NewChannelService(repo *repository.ChannelRepository, settingsService *SettingsService) *ChannelService {
+	return &ChannelService{repo: repo, settingsService: settingsService}
 }
 
 // Create validates and creates a new channel for an app.
 func (s *ChannelService) Create(ctx context.Context, appID uuid.UUID, req *models.CreateChannelRequest) (*models.Channel, error) {
+	// Fetch app to check tier
+	app, err := s.settingsService.GetApp(appID)
+	if err != nil {
+		return nil, fmt.Errorf("app not found: %w", err)
+	}
+
+	// Enforce channel limits
+	channels, _ := s.repo.ListByApp(appID)
+	if app.Tier == "free" && len(channels) >= 1 {
+		return nil, fmt.Errorf("free tier apps are limited to 1 channel (Production)")
+	}
+	if app.Tier == "pro" && len(channels) >= 3 {
+		return nil, fmt.Errorf("pro tier apps are limited to 3 channels")
+	}
+
 	// Check if slug already exists for this app
 	existing, _ := s.repo.GetBySlug(appID, req.Slug)
 	if existing != nil {
@@ -98,5 +114,9 @@ func (s *ChannelService) Delete(appID uuid.UUID, slug string) error {
 
 // EnsureDefaultChannels initializes production/staging/beta if missing.
 func (s *ChannelService) EnsureDefaultChannels(appID uuid.UUID) error {
-	return s.repo.EnsureDefaultChannels(appID)
+	app, err := s.settingsService.GetApp(appID)
+	if err != nil {
+		return err
+	}
+	return s.repo.EnsureDefaultChannels(app)
 }

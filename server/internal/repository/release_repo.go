@@ -45,6 +45,19 @@ func (r *ReleaseRepository) GetActiveRelease(appID uuid.UUID, channel string) (*
 	return &release, nil
 }
 
+// GetLatestActive finds the most recently created release for a channel, regardless of whether it's currently active.
+func (r *ReleaseRepository) GetLatestActive(appID uuid.UUID, channel string) (*models.Release, error) {
+	var release models.Release
+	err := r.db.
+		Where("app_id = ? AND channel = ?", appID, channel).
+		Order("created_at DESC").
+		First(&release).Error
+	if err != nil {
+		return nil, err
+	}
+	return &release, nil
+}
+
 // List retrieves releases with pagination and optional filters.
 func (r *ReleaseRepository) List(appID uuid.UUID, channel string, isActive *bool, page, perPage int) ([]models.Release, int64, error) {
 	var releases []models.Release

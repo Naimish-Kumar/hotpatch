@@ -18,12 +18,13 @@ type ReleaseService struct {
 	repo            *repository.ReleaseRepository
 	storage         *storage.S3Storage
 	settingsService *SettingsService
+	securityService *SecurityService
 	redis           *redis.Client
 }
 
 // NewReleaseService creates a new ReleaseService.
-func NewReleaseService(repo *repository.ReleaseRepository, storage *storage.S3Storage, settingsService *SettingsService, redis *redis.Client) *ReleaseService {
-	return &ReleaseService{repo: repo, storage: storage, settingsService: settingsService, redis: redis}
+func NewReleaseService(repo *repository.ReleaseRepository, storage *storage.S3Storage, settingsService *SettingsService, securityService *SecurityService, redis *redis.Client) *ReleaseService {
+	return &ReleaseService{repo: repo, storage: storage, settingsService: settingsService, securityService: securityService, redis: redis}
 }
 
 func (s *ReleaseService) invalidateCache(ctx context.Context, appID uuid.UUID, channel string) {
@@ -54,6 +55,26 @@ func (s *ReleaseService) Create(ctx context.Context, req *models.CreateReleaseRe
 	}
 	if exists {
 		return nil, fmt.Errorf("version %s already exists for channel %s", req.Version, channel)
+	}
+
+	// Fetch app to check tier and monotonic versioning
+	app, err := s.settingsService.GetApp(appID)
+	if err != nil {
+		return nil, fmt.Errorf("app not found: %w", err)
+	}
+
+	// Enforce rollout limit for Free tier
+	if app.Tier == "free" && rollout < 100 {
+		return nil, fmt.Errorf("phased rollout (percentage < 100) is a Pro feature. Current tier: %s", app.Tier)
+	}
+
+	// Monotonic versioning check
+	latest, _ := s.repo.GetLatestActive(appID, channel)
+	if latest != nil {
+		// Simple string comparison for now, in production use a semver library if versions follow semver
+		if req.Version <= latest.Version {
+			return nil, fmt.Errorf("monotonic versioning enforced: new version %s must be greater than current active version %s", req.Version, latest.Version)
+		}
 	}
 
 	// Upload bundle to S3
@@ -101,6 +122,9 @@ func (s *ReleaseService) Create(ctx context.Context, req *models.CreateReleaseRe
 	// Dispatch webhook
 	s.settingsService.DispatchEvent(appID, "release.created", release)
 
+	// Log audit trail
+	s.securityService.Log(appID, "system", "release.create", release.ID.String(), fmt.Sprintf("Version: %s, Channel: %s", release.Version, release.Channel), "")
+
 	// Invalidate cache
 	s.invalidateCache(ctx, appID, channel)
 
@@ -145,6 +169,9 @@ func (s *ReleaseService) Rollback(releaseID uuid.UUID) (*models.Release, error) 
 	// Dispatch webhook
 	s.settingsService.DispatchEvent(release.AppID, "release.rolled_back", release)
 
+	// Log audit trail
+	s.securityService.Log(release.AppID, "system", "release.rollback", release.ID.String(), fmt.Sprintf("Target Version: %s", release.Version), "")
+
 	// Invalidate cache
 	s.invalidateCache(context.Background(), release.AppID, release.Channel)
 
@@ -154,9 +181,25 @@ func (s *ReleaseService) Rollback(releaseID uuid.UUID) (*models.Release, error) 
 // UpdateRollout changes the rollout percentage for a release.
 func (s *ReleaseService) UpdateRollout(ctx context.Context, releaseID uuid.UUID, percentage int) error {
 	release, err := s.repo.GetByID(releaseID)
-	if err == nil {
-		s.invalidateCache(ctx, release.AppID, release.Channel)
+	if err != nil {
+		return fmt.Errorf("release not found: %w", err)
 	}
+
+	// Check tier
+	app, err := s.settingsService.GetApp(release.AppID)
+	if err != nil {
+		return fmt.Errorf("app not found: %w", err)
+	}
+
+	if app.Tier == "free" && percentage < 100 {
+		return fmt.Errorf("phased rollout is a Pro feature. Free apps must stay at 100%%")
+	}
+
+	s.invalidateCache(ctx, release.AppID, release.Channel)
+
+	// Log audit trail
+	s.securityService.Log(release.AppID, "system", "release.update_rollout", releaseID.String(), fmt.Sprintf("Rollout set to %d%%", percentage), "")
+
 	return s.repo.UpdateRollout(releaseID, percentage)
 }
 
@@ -166,13 +209,27 @@ func (s *ReleaseService) Archive(ctx context.Context, releaseID uuid.UUID) error
 	if err == nil {
 		s.invalidateCache(ctx, release.AppID, release.Channel)
 	}
+	// Log audit trail
+	s.securityService.Log(release.AppID, "system", "release.archive", releaseID.String(), "", "")
+
 	return s.repo.SoftDelete(releaseID)
 }
+
 // AddPatch uploads a patch file and associates it with a release.
 func (s *ReleaseService) AddPatch(ctx context.Context, releaseID uuid.UUID, req *models.AddPatchRequest, patchFile io.Reader) (*models.Patch, error) {
 	release, err := s.repo.GetByID(releaseID)
 	if err != nil {
 		return nil, fmt.Errorf("release not found: %w", err)
+	}
+
+	// Check tier
+	app, err := s.settingsService.GetApp(release.AppID)
+	if err != nil {
+		return nil, fmt.Errorf("app not found: %w", err)
+	}
+
+	if app.Tier == "free" {
+		return nil, fmt.Errorf("differential patching is a Pro feature. Current tier: %s", app.Tier)
 	}
 
 	// Upload patch to S3
@@ -203,6 +260,9 @@ func (s *ReleaseService) AddPatch(ctx context.Context, releaseID uuid.UUID, req 
 	if err := s.repo.CreatePatch(patch); err != nil {
 		return nil, fmt.Errorf("failed to save patch record: %w", err)
 	}
+
+	// Log audit trail
+	s.securityService.Log(release.AppID, "system", "release.add_patch", patch.ID.String(), fmt.Sprintf("For Version: %s, Base Version: %s", release.Version, req.BaseVersion), "")
 
 	// Invalidate cache since active release now has a new patch
 	s.invalidateCache(ctx, release.AppID, release.Channel)

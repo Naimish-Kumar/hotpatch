@@ -11,12 +11,13 @@ import (
 
 // DeviceService handles device registration and installation tracking.
 type DeviceService struct {
-	repo *repository.DeviceRepository
+	repo            *repository.DeviceRepository
+	securityService *SecurityService
 }
 
 // NewDeviceService creates a new DeviceService.
-func NewDeviceService(repo *repository.DeviceRepository) *DeviceService {
-	return &DeviceService{repo: repo}
+func NewDeviceService(repo *repository.DeviceRepository, securityService *SecurityService) *DeviceService {
+	return &DeviceService{repo: repo, securityService: securityService}
 }
 
 // RegisterOrUpdate registers a new device or updates an existing one's last_seen timestamp.
@@ -67,6 +68,11 @@ func (s *DeviceService) ReportInstallation(req *models.ReportInstallationRequest
 
 	if err := s.repo.CreateInstallation(installation); err != nil {
 		return nil, fmt.Errorf("failed to record installation: %w", err)
+	}
+
+	// Automated rollback logging for audit trail (Page 17 of docs)
+	if req.Status == "rolled_back" {
+		s.securityService.Log(device.AppID, "sdk", "installation.rollback", releaseID.String(), fmt.Sprintf("Device %s automatically rolled back", device.DeviceID), "")
 	}
 
 	return installation, nil

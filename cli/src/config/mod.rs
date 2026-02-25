@@ -9,6 +9,7 @@ pub struct Config {
     pub api_endpoint: String,
     pub api_token: String,
     pub app_id: Option<String>,
+    pub tier: Option<String>,
     pub encryption_key: Option<String>, // Legacy single key
     pub active_key_id: Option<String>,
     pub encryption_keys: Option<std::collections::HashMap<String, String>>, // ID -> Hex Key

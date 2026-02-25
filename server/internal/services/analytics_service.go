@@ -35,25 +35,28 @@ func (s *AnalyticsService) GetDashboardOverview(ctx context.Context, appID uuid.
 		return nil, err
 	}
 
-	// For demo/simplicity, we calculate some values. 
-	// In production, these might be cached or pre-computed.
 	successRate, _ := s.repo.GetAggregateSuccessRate(appID)
-	// Count releases
 	_, totalReleases, _ := s.releaseRepo.List(appID, "", nil, 1, 1)
 
-	// Simple mock for trends/delivered for now
-	updatesDelivered := totalDevices * 3 // average 3 updates per device
+	// Count devices active in the last 24 hours (real query)
+	activeLast24h, _ := s.deviceRepo.CountActiveLast24h(appID)
+
+	// Count total successful installations (real query)
+	updatesDelivered, _ := s.repo.CountSuccessfulInstallations(appID)
+
+	// Calculate devices trend: compare this week's new devices vs last week's
+	devicesTrend, _ := s.repo.GetDevicesGrowthRate(appID)
 
 	// Bandwidth tracking
 	bandwidthSaved, _ := s.repo.GetBandwidthSaved(appID)
 
 	return &models.DashboardOverview{
 		TotalDevices:     totalDevices,
-		ActiveLast24h:    int64(float64(totalDevices) * 0.45), // Mock 45% DAU
+		ActiveLast24h:    activeLast24h,
 		TotalReleases:    totalReleases,
 		UpdatesDelivered: updatesDelivered,
 		SuccessRate:      successRate,
-		DevicesTrend:     12.4, // Mock trend
+		DevicesTrend:     devicesTrend,
 		BandwidthSaved:   bandwidthSaved,
 	}, nil
 }
@@ -82,21 +85,24 @@ func (s *AnalyticsService) GetReleaseDetails(ctx context.Context, releaseID uuid
 	}
 
 	statusCounts, _ := s.deviceRepo.CountInstallationsByStatus(releaseID)
-	
+
 	// Calculate adoption % relative to total devices for that app
 	totalDevices, _ := s.deviceRepo.CountByApp(release.AppID)
 	installedCount := statusCounts["installed"]
-	
+
 	adoption := 0.0
 	if totalDevices > 0 {
 		adoption = (float64(installedCount) / float64(totalDevices)) * 100
 	}
+
+	// Get real installation timeline for this release
+	installTimeline, _ := s.repo.GetReleaseInstallTimeline(releaseID, 30)
 
 	return &models.ReleaseAnalytics{
 		ReleaseID:       releaseID.String(),
 		Version:         release.Version,
 		StatusCounts:    statusCounts,
 		AdoptionPercent: adoption,
-		InstallTimeline: []models.DailyMetric{}, // To be implemented if needed
+		InstallTimeline: installTimeline,
 	}, nil
 }

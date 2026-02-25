@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout'
 import { releases as releasesApi, channels as channelsApi, auth, type Release, type Channel } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import { AlertTriangle, X, RotateCcw, UploadCloud, FileUp, Info, Check, Loader2 } from 'lucide-react'
 
 const chColor: Record<string, { bg: string; color: string }> = {
@@ -39,13 +40,19 @@ export default function ReleasesPage() {
 
     const [toast, setToast] = useState('')
 
-    useEffect(() => {
-        fetchInitialData()
-    }, [])
+    const { isAuthenticated, isLoading: authLoading, app } = useAuth()
 
     useEffect(() => {
-        fetchReleases()
-    }, [filter, statusFilter])
+        if (!authLoading && isAuthenticated) {
+            fetchInitialData()
+        }
+    }, [authLoading, isAuthenticated])
+
+    useEffect(() => {
+        if (!authLoading && isAuthenticated) {
+            fetchReleases()
+        }
+    }, [filter, statusFilter, authLoading, isAuthenticated])
 
     async function fetchInitialData() {
         try {
@@ -58,9 +65,9 @@ export default function ReleasesPage() {
     }
 
     async function fetchReleases() {
+        if (!isAuthenticated) return
         setLoading(true)
         try {
-            const app = auth.getApp()
             const params: any = { app_id: app?.id || '', per_page: 50 }
             if (filter !== 'all') params.channel = filter
             if (statusFilter === 'active') params.is_active = 'true'

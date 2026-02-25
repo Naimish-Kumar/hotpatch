@@ -28,6 +28,13 @@ func (r *SettingsRepository) GetApp(id uuid.UUID) (*models.App, error) {
 	return &app, err
 }
 
+// GetAppBySubscriptionID finds an app by its Stripe subscription ID.
+func (r *SettingsRepository) GetAppBySubscriptionID(subscriptionID string) (*models.App, error) {
+	var app models.App
+	err := r.db.First(&app, "stripe_subscription_id = ?", subscriptionID).Error
+	return &app, err
+}
+
 // ── Webhooks ──────────────────────────────────────────
 
 func (r *SettingsRepository) CreateWebhook(webhook *models.Webhook) error {

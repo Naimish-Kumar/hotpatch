@@ -409,11 +409,25 @@ func (h *AuthHandler) CreateApp(c *gin.Context) {
 	}
 
 	apiKey := "hp_" + uuid.New().String()
+
+	tier := req.Tier
+	if tier == "" {
+		tier = "free"
+	}
+
 	app := models.App{
 		ID:       uuid.New(),
 		Name:     req.Name,
 		Platform: req.Platform,
 		APIKey:   apiKey,
+		Tier:     tier,
+	}
+
+	// Try to get owner ID from context (if route is protected)
+	if ownerID, exists := c.Get("owner_id"); exists {
+		if uid, err := uuid.Parse(ownerID.(string)); err == nil {
+			app.OwnerID = uid
+		}
 	}
 
 	if err := h.db.Create(&app).Error; err != nil {
@@ -426,9 +440,11 @@ func (h *AuthHandler) CreateApp(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, models.AppResponse{
-		ID:       app.ID,
-		Name:     app.Name,
-		Platform: app.Platform,
-		APIKey:   app.APIKey,
+		ID:        app.ID,
+		Name:      app.Name,
+		Platform:  app.Platform,
+		Tier:      app.Tier,
+		APIKey:    app.APIKey,
+		CreatedAt: app.CreatedAt,
 	})
 }

@@ -3,7 +3,9 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -18,12 +20,13 @@ import (
 
 // SettingsService handles app settings and webhook dispatching.
 type SettingsService struct {
-	repo *repository.SettingsRepository
+	repo            *repository.SettingsRepository
+	securityService *SecurityService
 }
 
 // NewSettingsService creates a new SettingsService.
-func NewSettingsService(repo *repository.SettingsRepository) *SettingsService {
-	return &SettingsService{repo: repo}
+func NewSettingsService(repo *repository.SettingsRepository, securityService *SecurityService) *SettingsService {
+	return &SettingsService{repo: repo, securityService: securityService}
 }
 
 // ── App Settings ──────────────────────────────────────
@@ -44,6 +47,9 @@ func (s *SettingsService) UpdateApp(ctx context.Context, appID uuid.UUID, req *m
 	if err := s.repo.UpdateApp(app); err != nil {
 		return nil, err
 	}
+
+	// Log audit trail
+	s.securityService.Log(appID, "system", "app.update", appID.String(), "", "")
 
 	return app, nil
 }
@@ -69,6 +75,9 @@ func (s *SettingsService) CreateWebhook(ctx context.Context, appID uuid.UUID, re
 		return nil, "", err
 	}
 
+	// Log audit trail
+	s.securityService.Log(appID, "system", "webhook.create", webhook.ID.String(), fmt.Sprintf("URL: %s", webhook.URL), "")
+
 	return webhook, secret, nil
 }
 
@@ -77,6 +86,9 @@ func (s *SettingsService) ListWebhooks(appID uuid.UUID) ([]models.Webhook, error
 }
 
 func (s *SettingsService) DeleteWebhook(appID, webhookID uuid.UUID) error {
+	// Log audit trail
+	s.securityService.Log(appID, "system", "webhook.delete", webhookID.String(), "", "")
+
 	return s.repo.DeleteWebhook(appID, webhookID)
 }
 
@@ -96,13 +108,34 @@ func (s *SettingsService) DispatchEvent(appID uuid.UUID, eventType string, paylo
 	for _, wh := range webhooks {
 		if strings.Contains(wh.Events, eventType) {
 			// In production, this should be an async worker (e.g., Redis/RabbitMQ)
-			go s.sendWebhook(wh.URL, jsonPayload)
+			go s.sendWebhook(wh.URL, wh.Secret, jsonPayload)
 		}
 	}
 }
 
-func (s *SettingsService) sendWebhook(url string, payload []byte) {
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+// sendWebhook delivers a webhook payload with HMAC-SHA256 signature for verification.
+func (s *SettingsService) sendWebhook(url, secret string, payload []byte) {
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+
+	// Compute HMAC-SHA256 signature: HMAC(secret, timestamp + "." + payload)
+	signedPayload := []byte(timestamp + "." + string(payload))
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(signedPayload)
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
+	if err != nil {
+		fmt.Printf("⚠️ Webhook request creation failed for %s: %v\n", url, err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-HotPatch-Signature", fmt.Sprintf("sha256=%s", signature))
+	req.Header.Set("X-HotPatch-Timestamp", timestamp)
+	req.Header.Set("User-Agent", "HotPatch-Webhook/1.0")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("⚠️ Webhook failed for %s: %v\n", url, err)
 		return

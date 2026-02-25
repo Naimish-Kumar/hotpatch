@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hotpatch/server/internal/api"
@@ -70,9 +71,6 @@ func main() {
 	sqlDB.SetMaxOpenConns(25)
 	sqlDB.SetMaxIdleConns(10)
 
-	fmt.Println("✅ Connected to PostgreSQL")
-
-	// ── Auto-migrate models ──
 	// ── Auto-migrate models ──
 	fmt.Println("⏳ Running database migrations (FKs disabled for initial setup)...")
 
@@ -88,11 +86,15 @@ func main() {
 		&models.SigningKey{},
 		&models.AuditLog{},
 		&models.Webhook{},
+		&models.SystemSetting{},
 	); err != nil {
 		log.Fatalf("❌ Failed to run migrations: %v", err)
 	}
 
 	fmt.Println("✅ Database migrated")
+
+	// ── Seed system settings ──
+	seedSettings(db, cfg)
 
 	// ── Initialize S3/R2 storage ──
 	var s3Store *storage.S3Storage
@@ -134,14 +136,15 @@ func main() {
 	settingsRepo := repository.NewSettingsRepository(db)
 
 	// ── Initialize services ──
-	settingsService := services.NewSettingsService(settingsRepo)
-	releaseService := services.NewReleaseService(releaseRepo, s3Store, settingsService, redisClient)
-	updateService := services.NewUpdateService(releaseRepo, deviceRepo, redisClient)
-	deviceService := services.NewDeviceService(deviceRepo)
-	channelService := services.NewChannelService(channelRepo)
-	analyticsService := services.NewAnalyticsService(analyticsRepo, deviceRepo, releaseRepo)
 	securityService := services.NewSecurityService(securityRepo)
+	settingsService := services.NewSettingsService(settingsRepo, securityService)
+	releaseService := services.NewReleaseService(releaseRepo, s3Store, settingsService, securityService, redisClient)
+	updateService := services.NewUpdateService(releaseRepo, deviceRepo, redisClient)
+	deviceService := services.NewDeviceService(deviceRepo, securityService)
+	channelService := services.NewChannelService(channelRepo, settingsService)
+	analyticsService := services.NewAnalyticsService(analyticsRepo, deviceRepo, releaseRepo)
 	emailService := services.NewEmailService(cfg.BackendURL)
+	paymentService := services.NewPaymentService(settingsRepo, cfg, securityService)
 
 	// ── Initialize handlers ──
 	authHandler := handlers.NewAuthHandler(db, channelService, emailService, cfg.JWTSecret, cfg.JWTExpiration, cfg.SuperadminEmail, cfg.SuperadminPassword, cfg.BackendURL, cfg.FrontendURL, cfg.GoogleClientID, cfg.GoogleClientSecret)
@@ -153,6 +156,7 @@ func main() {
 	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService)
 	securityHandler := handlers.NewSecurityHandler(securityService)
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService)
 
 	// ── Setup Gin engine ──
 	if cfg.Environment == "production" {
@@ -161,10 +165,14 @@ func main() {
 	r := gin.Default()
 
 	// ── Register routes ──
+	startTime := time.Now()
 	api.SetupRoutes(
 		r,
 		cfg.JWTSecret,
+		cfg.FrontendURL,
 		redisClient,
+		db,
+		startTime,
 		authHandler,
 		releaseHandler,
 		updateHandler,
@@ -174,6 +182,7 @@ func main() {
 		securityHandler,
 		settingsHandler,
 		adminHandler,
+		paymentHandler,
 	)
 
 	// ── Start server ──
@@ -182,4 +191,36 @@ func main() {
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("❌ Server failed: %v", err)
 	}
+}
+
+func seedSettings(db *gorm.DB, cfg *config.Config) {
+	fmt.Println("⏳ Seeding system settings from environment...")
+	settings := []models.SystemSetting{
+		{Key: "JWT_SECRET", Value: cfg.JWTSecret, Description: "Secret key for signing JSON Web Tokens."},
+		{Key: "S3_BUCKET", Value: cfg.S3Bucket, Description: "S3 bucket name for bundle storage."},
+		{Key: "S3_REGION", Value: cfg.S3Region, Description: "AWS region for S3 bucket."},
+		{Key: "S3_ENDPOINT", Value: cfg.S3Endpoint, Description: "Custom S3 endpoint URL (e.g. for Cloudflare R2 or MinIO)."},
+		{Key: "AWS_ACCESS_KEY_ID", Value: cfg.AWSAccessKey, Description: "Access key ID for S3 storage."},
+		{Key: "AWS_SECRET_ACCESS_KEY", Value: cfg.AWSSecretKey, Description: "Secret access key for S3 storage."},
+		{Key: "STRIPE_SECRET_KEY", Value: cfg.StripeSecretKey, Description: "Stripe secret API key for payments."},
+		{Key: "STRIPE_WEBHOOK_SECRET", Value: cfg.StripeWebhookSecret, Description: "Webhook signing secret for Stripe."},
+		{Key: "STRIPE_PRICE_ID_PRO", Value: cfg.StripePriceIDPro, Description: "Stripe Price ID for Pro plan."},
+		{Key: "STRIPE_PRICE_ID_ENTERPRISE", Value: cfg.StripePriceIDEnt, Description: "Stripe Price ID for Enterprise plan."},
+		{Key: "GOOGLE_CLIENT_ID", Value: cfg.GoogleClientID, Description: "Google OAuth 2.0 Client ID."},
+		{Key: "GOOGLE_CLIENT_SECRET", Value: cfg.GoogleClientSecret, Description: "Google OAuth 2.0 Client Secret."},
+		{Key: "SUPERADMIN_EMAIL", Value: cfg.SuperadminEmail, Description: "Default superadmin email address."},
+		{Key: "ENVIRONMENT", Value: cfg.Environment, Description: "Application environment (development/production)."},
+		{Key: "BACKEND_URL", Value: cfg.BackendURL, Description: "Base URL of the backend API."},
+		{Key: "FRONTEND_URL", Value: cfg.FrontendURL, Description: "Base URL of the frontend application."},
+	}
+
+	for _, s := range settings {
+		var existing models.SystemSetting
+		if err := db.Where("key = ?", s.Key).First(&existing).Error; err != nil {
+			if err := db.Create(&s).Error; err != nil {
+				fmt.Printf("⚠️ Failed to seed setting %s: %v\n", s.Key, err)
+			}
+		}
+	}
+	fmt.Println("✅ System settings synchronized")
 }

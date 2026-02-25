@@ -1,73 +1,55 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use colored::Colorize;
 use crate::api::ApiClient;
 use crate::config::Config;
+use std::io::{self, Write};
 use std::sync::mpsc;
 use std::thread;
 use tiny_http::{Response, Server};
 use url::Url;
 
 /// Execute the `hotpatch login` command.
-///
-/// Shorebird-style login: Opens the browser for Google OAuth,
-/// captures the token via a local server.
+/// 
+/// As per documentation Page 6:
+/// Prompts for API Endpoint and API Token.
 pub async fn execute() -> Result<()> {
     println!("{}", "  🔑 HotPatch Login".bold());
     println!("{}", "  ─────────────────────────────────".dimmed());
     println!();
 
-    // Default backend URL
-    let backend_url = "http://localhost:8080";
-    
-    // Start local server to receive the callback
-    let port = 8081;
-    let server = Server::http(format!("0.0.0.0:{}", port))
-        .map_err(|e| anyhow!("Could not start local server on port {}: {}", port, e))?;
+    let mut api_endpoint = String::new();
+    print!("  {} (e.g. https://api.hotpatch.dev): ", "API Endpoint:".bold());
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut api_endpoint)?;
+    let api_endpoint = api_endpoint.trim().to_string();
 
-    println!("{}", format!("  ⏳ Opening your browser to authenticate...").cyan());
-    
-    // Construct the login URL
-    // State is used to tell the backend which port we are listening on
-    let login_url = format!("{}/auth/google/login?state=cli:{}", backend_url, port);
-    
-    if let Err(e) = webbrowser::open(&login_url) {
-        println!("{}", format!("  ⚠️  Failed to open browser automatically: {}", e).yellow());
-        println!("{}", "  Please manually visit:".dimmed());
-        println!("  {}", login_url.underline().blue());
+    if api_endpoint.is_empty() {
+        anyhow::bail!("API Endpoint is required");
     }
 
-    println!("{}", "  Waiting for authentication...".dimmed());
+    let mut api_key = String::new();
+    print!("  {}: ", "API Token:".bold());
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut api_key)?;
+    let api_key = api_key.trim().to_string();
 
-    // Wait for the redirect in a separate thread or block
-    let (tx, rx) = mpsc::channel();
-    
-    thread::spawn(move || {
-        for request in server.incoming_requests() {
-            let url = format!("http://localhost{}{}", port, request.url());
-            if let Ok(parsed_url) = Url::parse(&url) {
-                if let Some(token) = parsed_url.query_pairs().find(|(k, _)| k == "token").map(|(_, v)| v.into_owned()) {
-                    let response = Response::from_string("Authentication successful! You can now close this window.")
-                        .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/plain"[..]).unwrap());
-                    let _ = request.respond(response);
-                    let _ = tx.send(token);
-                    break;
-                }
-            }
-            let _ = request.respond(Response::from_string("Waiting for token..."));
-        }
-    });
+    if api_key.is_empty() {
+        anyhow::bail!("API Token is required");
+    }
 
-    // Wait for token from the channel
-    let token = rx.recv().map_err(|_| anyhow!("Login cancelled or failed"))?;
+    println!();
+    println!("{}", "  Authenticating...".dimmed());
 
-    // Create a client with the new token to fetch app info (optional, or just save token)
-    let client = ApiClient::new(backend_url, &token);
-    
-    // Save configuration
+    // Create a temporary client with empty token to exchange the API Key for a JWT
+    let temp_client = ApiClient::new(&api_endpoint, "");
+    let auth_resp = temp_client.authenticate(&api_key).await?;
+
+    // Save configuration with the JWT token
     let config = Config {
-        api_endpoint: backend_url.to_string(),
-        api_token: token,
-        app_id: None,
+        api_endpoint: api_endpoint.clone(),
+        api_token: auth_resp.access_token,
+        app_id: Some(auth_resp.app.id.clone()),
+        tier: Some(auth_resp.app.tier.clone()),
         encryption_key: None,
         active_key_id: None,
         encryption_keys: None,

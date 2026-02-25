@@ -40,6 +40,19 @@ pub fn execute() -> Result<()> {
                     format!("  App ID:          {}", app_id).white()
                 );
             }
+
+            if let Some(tier) = &config.tier {
+                let tier_display = match tier.as_str() {
+                    "free" => tier.to_uppercase().white(),
+                    "pro" => tier.to_uppercase().yellow().bold(),
+                    "enterprise" => tier.to_uppercase().magenta().bold(),
+                    _ => tier.to_uppercase().white(),
+                };
+                println!(
+                    "{}",
+                    format!("  Plan Tier:       {}", tier_display)
+                );
+            }
         }
         None => {
             println!(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/hotpatch/server/internal/models"
@@ -29,7 +30,7 @@ func (s *SecurityService) CreateApiKey(ctx context.Context, appID uuid.UUID, req
 		return nil, "", err
 	}
 	rawKey := "hp_" + hex.EncodeToString(bytes)
-	
+
 	// Create prefix for UI (first 8 chars of raw key)
 	prefix := rawKey[:8] + "..."
 
@@ -46,6 +47,9 @@ func (s *SecurityService) CreateApiKey(ctx context.Context, appID uuid.UUID, req
 		return nil, "", err
 	}
 
+	// Log audit trail
+	s.Log(appID, "system", "security.api_key_create", apiKey.ID.String(), fmt.Sprintf("Name: %s", apiKey.Name), "")
+
 	return apiKey, rawKey, nil
 }
 
@@ -54,6 +58,9 @@ func (s *SecurityService) ListApiKeys(appID uuid.UUID) ([]models.ApiKey, error) 
 }
 
 func (s *SecurityService) DeleteApiKey(appID, keyID uuid.UUID) error {
+	// Log audit trail
+	s.Log(appID, "system", "security.api_key_delete", keyID.String(), "", "")
+
 	return s.repo.DeleteApiKey(appID, keyID)
 }
 
@@ -70,6 +77,10 @@ func (s *SecurityService) CreateSigningKey(appID uuid.UUID, req *models.CreateSi
 	if err := s.repo.CreateSigningKey(key); err != nil {
 		return nil, err
 	}
+
+	// Log audit trail
+	s.Log(appID, "system", "security.signing_key_create", key.ID.String(), fmt.Sprintf("Name: %s", key.Name), "")
+
 	return key, nil
 }
 
@@ -78,6 +89,9 @@ func (s *SecurityService) ListSigningKeys(appID uuid.UUID) ([]models.SigningKey,
 }
 
 func (s *SecurityService) DeleteSigningKey(appID, keyID uuid.UUID) error {
+	// Log audit trail
+	s.Log(appID, "system", "security.signing_key_delete", keyID.String(), "", "")
+
 	return s.repo.DeleteSigningKey(appID, keyID)
 }
 

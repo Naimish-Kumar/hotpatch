@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/hotpatch/server/internal/models"
 	"gorm.io/gorm"
@@ -58,6 +60,16 @@ func (r *DeviceRepository) ListByApp(appID uuid.UUID, page, perPage int) ([]mode
 func (r *DeviceRepository) CountByApp(appID uuid.UUID) (int64, error) {
 	var count int64
 	err := r.db.Model(&models.Device{}).Where("app_id = ?", appID).Count(&count).Error
+	return count, err
+}
+
+// CountActiveLast24h returns the number of devices seen in the last 24 hours.
+func (r *DeviceRepository) CountActiveLast24h(appID uuid.UUID) (int64, error) {
+	var count int64
+	cutoff := time.Now().Add(-24 * time.Hour)
+	err := r.db.Model(&models.Device{}).
+		Where("app_id = ? AND last_seen > ?", appID, cutoff).
+		Count(&count).Error
 	return count, err
 }
 

@@ -19,19 +19,33 @@ const adminNav = [
 export function AdminLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
     const router = useRouter()
-    const { role, logout } = useAuth()
+    // Security check: Only allow logged-in superadmins
+    const { role, logout, isAuthenticated, isLoading } = useAuth()
     const [collapsed, setCollapsed] = useState(false)
 
-    // Security check: Only allow superadmins
     useEffect(() => {
-        if (role && role !== 'superadmin') {
-            router.push('/dashboard')
+        if (!isLoading) {
+            if (!isAuthenticated) {
+                if (pathname !== '/admin/login') {
+                    router.push('/admin/login')
+                }
+            } else {
+                if (role !== 'superadmin') {
+                    router.push('/dashboard')
+                } else if (pathname === '/admin/login') {
+                    router.push('/admin')
+                }
+            }
         }
-    }, [role, router])
+    }, [role, isAuthenticated, isLoading, router, pathname])
 
     const handleLogout = () => {
         logout()
         router.push('/')
+    }
+
+    if (pathname === '/admin/login') {
+        return <main style={{ width: '100%', height: '100vh', background: '#0a0a0c' }}>{children}</main>
     }
 
     return (
