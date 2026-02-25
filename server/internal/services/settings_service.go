@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
+	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -59,7 +61,7 @@ func (s *SettingsService) UpdateApp(ctx context.Context, appID uuid.UUID, req *m
 func (s *SettingsService) CreateWebhook(ctx context.Context, appID uuid.UUID, req *models.CreateWebhookRequest) (*models.Webhook, string, error) {
 	// Generate a secret for HMAC signing
 	secretBytes := make([]byte, 32)
-	rand.Read(secretBytes)
+	crand.Read(secretBytes)
 	secret := hex.EncodeToString(secretBytes)
 
 	webhook := &models.Webhook{
@@ -107,14 +109,49 @@ func (s *SettingsService) DispatchEvent(appID uuid.UUID, eventType string, paylo
 
 	for _, wh := range webhooks {
 		if strings.Contains(wh.Events, eventType) {
-			// In production, this should be an async worker (e.g., Redis/RabbitMQ)
-			go s.sendWebhook(wh.URL, wh.Secret, jsonPayload)
+			go s.sendWebhookWithRetry(wh.URL, wh.Secret, jsonPayload, event.ID)
 		}
 	}
 }
 
+// webhookMaxRetries is the maximum number of delivery attempts per webhook.
+const webhookMaxRetries = 5
+
+// sendWebhookWithRetry delivers a webhook payload with exponential backoff retry.
+// It attempts delivery up to webhookMaxRetries times with delays of 1s, 2s, 4s, 8s, 16s.
+// Each attempt re-signs the payload with a fresh timestamp.
+func (s *SettingsService) sendWebhookWithRetry(url, secret string, payload []byte, eventID string) {
+	var lastErr error
+
+	for attempt := 0; attempt < webhookMaxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 1s, 2s, 4s, 8s, 16s
+			baseDelay := time.Duration(1<<uint(attempt-1)) * time.Second
+
+			// Add jitter (±25%) to prevent thundering herd
+			jitter := time.Duration(rand.Int63n(int64(baseDelay) / 2))
+			delay := baseDelay + jitter
+
+			log.Printf("[Webhook] Event %s → %s: retry %d/%d in %v", eventID, url, attempt, webhookMaxRetries, delay)
+			time.Sleep(delay)
+		}
+
+		lastErr = s.sendWebhook(url, secret, payload)
+		if lastErr == nil {
+			if attempt > 0 {
+				log.Printf("[Webhook] Event %s → %s: delivered on attempt %d", eventID, url, attempt+1)
+			}
+			return
+		}
+	}
+
+	log.Printf("[Webhook] Event %s → %s: FAILED after %d attempts. Last error: %v",
+		eventID, url, webhookMaxRetries, lastErr)
+}
+
 // sendWebhook delivers a webhook payload with HMAC-SHA256 signature for verification.
-func (s *SettingsService) sendWebhook(url, secret string, payload []byte) {
+// Returns nil on success (2xx/3xx), or an error for network failures and 4xx/5xx responses.
+func (s *SettingsService) sendWebhook(url, secret string, payload []byte) error {
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 
 	// Compute HMAC-SHA256 signature: HMAC(secret, timestamp + "." + payload)
@@ -125,24 +162,25 @@ func (s *SettingsService) sendWebhook(url, secret string, payload []byte) {
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
-		fmt.Printf("⚠️ Webhook request creation failed for %s: %v\n", url, err)
-		return
+		return fmt.Errorf("request creation failed: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-HotPatch-Signature", fmt.Sprintf("sha256=%s", signature))
 	req.Header.Set("X-HotPatch-Timestamp", timestamp)
+	req.Header.Set("X-HotPatch-Delivery", fmt.Sprintf("%d", time.Now().UnixNano()))
 	req.Header.Set("User-Agent", "HotPatch-Webhook/1.0")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("⚠️ Webhook failed for %s: %v\n", url, err)
-		return
+		return fmt.Errorf("delivery failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		fmt.Printf("⚠️ Webhook returned error %d for %s\n", resp.StatusCode, url)
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
+
+	return nil
 }

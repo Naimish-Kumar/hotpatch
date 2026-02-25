@@ -21,6 +21,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// hashAppAPIKey hashes an app-level API key using the same SHA-256 method
+// as the security service for consistency.
+func hashAppAPIKey(rawKey string) string {
+	return services.HashApiKey(rawKey)
+}
+
 // AuthHandler handles authentication endpoints.
 type AuthHandler struct {
 	db                 *gorm.DB
@@ -377,7 +383,9 @@ func (h *AuthHandler) CreateToken(c *gin.Context) {
 	}
 
 	var app models.App
-	if err := h.db.Where("api_key = ?", req.APIKey).First(&app).Error; err != nil {
+	// Hash the incoming key and look up by hash (keys are stored hashed)
+	hashedKey := hashAppAPIKey(req.APIKey)
+	if err := h.db.Where("api_key = ?", hashedKey).First(&app).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
 		return
 	}
@@ -408,7 +416,9 @@ func (h *AuthHandler) CreateApp(c *gin.Context) {
 		return
 	}
 
-	apiKey := "hp_" + uuid.New().String()
+	rawAPIKey := "hp_" + uuid.New().String()
+	// Hash the API key before storing — raw key is returned only once at creation
+	hashedAPIKey := hashAppAPIKey(rawAPIKey)
 
 	tier := req.Tier
 	if tier == "" {
@@ -419,7 +429,7 @@ func (h *AuthHandler) CreateApp(c *gin.Context) {
 		ID:       uuid.New(),
 		Name:     req.Name,
 		Platform: req.Platform,
-		APIKey:   apiKey,
+		APIKey:   hashedAPIKey,
 		Tier:     tier,
 	}
 
@@ -444,7 +454,7 @@ func (h *AuthHandler) CreateApp(c *gin.Context) {
 		Name:      app.Name,
 		Platform:  app.Platform,
 		Tier:      app.Tier,
-		APIKey:    app.APIKey,
+		APIKey:    rawAPIKey, // Return raw key only at creation time
 		CreatedAt: app.CreatedAt,
 	})
 }

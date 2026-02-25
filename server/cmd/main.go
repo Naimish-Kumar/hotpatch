@@ -70,6 +70,7 @@ func main() {
 	// Connection pool settings for high concurrency
 	sqlDB.SetMaxOpenConns(25)
 	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 
 	// ── Auto-migrate models ──
 	fmt.Println("⏳ Running database migrations (FKs disabled for initial setup)...")
@@ -138,7 +139,8 @@ func main() {
 	// ── Initialize services ──
 	securityService := services.NewSecurityService(securityRepo)
 	settingsService := services.NewSettingsService(settingsRepo, securityService)
-	releaseService := services.NewReleaseService(releaseRepo, s3Store, settingsService, securityService, redisClient)
+	encryptionService := services.NewEncryptionService()
+	releaseService := services.NewReleaseService(releaseRepo, s3Store, settingsService, securityService, encryptionService, redisClient)
 	updateService := services.NewUpdateService(releaseRepo, deviceRepo, redisClient)
 	deviceService := services.NewDeviceService(deviceRepo, securityService)
 	channelService := services.NewChannelService(channelRepo, settingsService)

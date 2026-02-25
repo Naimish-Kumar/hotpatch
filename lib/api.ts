@@ -292,7 +292,8 @@ export const releases = {
         if (params?.is_active) qs.set('is_active', params.is_active)
         if (params?.page) qs.set('page', String(params.page))
         if (params?.per_page) qs.set('per_page', String(params.per_page))
-        return request<PaginatedResponse<Release>>(`/releases?${qs}`)
+        const raw = await request<{ releases: Release[], total: number, page: number, per_page: number }>(`/releases?${qs}`)
+        return { data: raw.releases || [], total: raw.total, page: raw.page, per_page: raw.per_page }
     },
 
     async get(id: string): Promise<Release> {

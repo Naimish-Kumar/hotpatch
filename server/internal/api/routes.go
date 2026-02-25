@@ -40,7 +40,7 @@ func SetupRoutes(
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins,
-		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-App-Key", "X-App-ID"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,

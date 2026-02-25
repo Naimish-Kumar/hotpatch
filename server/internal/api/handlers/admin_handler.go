@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hotpatch/server/internal/models"
+	"github.com/hotpatch/server/internal/services"
 	"gorm.io/gorm"
 )
 
@@ -90,8 +91,10 @@ func (h *AdminHandler) UpdateApp(c *gin.Context) {
 	if req.Tier != nil {
 		app.Tier = *req.Tier
 	}
+	var rawNewKey string
 	if req.RegenerateKey {
-		app.APIKey = "hp_" + uuid.New().String()
+		rawNewKey = "hp_" + uuid.New().String()
+		app.APIKey = services.HashApiKey(rawNewKey)
 	}
 
 	if err := h.db.Save(&app).Error; err != nil {
@@ -99,14 +102,19 @@ func (h *AdminHandler) UpdateApp(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.AppResponse{
+	resp := models.AppResponse{
 		ID:        app.ID,
 		Name:      app.Name,
 		Platform:  app.Platform,
 		Tier:      app.Tier,
-		APIKey:    app.APIKey, // Return new key if regenerated
 		CreatedAt: app.CreatedAt,
-	})
+	}
+	// Return the raw key only when regenerated
+	if rawNewKey != "" {
+		resp.APIKey = rawNewKey
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // DeleteApp allows superadmin to delete any application.

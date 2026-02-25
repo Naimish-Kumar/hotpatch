@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 
@@ -21,6 +22,13 @@ func NewSecurityService(repo *repository.SecurityRepository) *SecurityService {
 	return &SecurityService{repo: repo}
 }
 
+// HashApiKey computes a SHA-256 hash of the raw API key.
+// This is a one-way operation — the raw key cannot be recovered from the hash.
+func HashApiKey(rawKey string) string {
+	hash := sha256.Sum256([]byte(rawKey))
+	return hex.EncodeToString(hash[:])
+}
+
 // ── API Keys ──────────────────────────────────────────
 
 func (s *SecurityService) CreateApiKey(ctx context.Context, appID uuid.UUID, req *models.CreateApiKeyRequest) (*models.ApiKey, string, error) {
@@ -31,14 +39,17 @@ func (s *SecurityService) CreateApiKey(ctx context.Context, appID uuid.UUID, req
 	}
 	rawKey := "hp_" + hex.EncodeToString(bytes)
 
-	// Create prefix for UI (first 8 chars of raw key)
+	// Create prefix for UI display (first 8 chars + "...")
 	prefix := rawKey[:8] + "..."
+
+	// Hash the key before storing — the raw key is only returned once
+	hashedKey := HashApiKey(rawKey)
 
 	apiKey := &models.ApiKey{
 		ID:        uuid.New(),
 		AppID:     appID,
 		Name:      req.Name,
-		Key:       rawKey,
+		Key:       hashedKey,
 		Prefix:    prefix,
 		ExpiresAt: req.ExpiresAt,
 	}
@@ -50,7 +61,14 @@ func (s *SecurityService) CreateApiKey(ctx context.Context, appID uuid.UUID, req
 	// Log audit trail
 	s.Log(appID, "system", "security.api_key_create", apiKey.ID.String(), fmt.Sprintf("Name: %s", apiKey.Name), "")
 
-	return apiKey, rawKey, nil
+	return apiKey, rawKey, nil // Return raw key only on creation
+}
+
+// ValidateApiKey looks up an API key by hashing the provided raw key and
+// comparing it against stored hashes. Returns the matching ApiKey if found.
+func (s *SecurityService) ValidateApiKey(rawKey string) (*models.ApiKey, error) {
+	hashedKey := HashApiKey(rawKey)
+	return s.repo.FindByKey(hashedKey)
 }
 
 func (s *SecurityService) ListApiKeys(appID uuid.UUID) ([]models.ApiKey, error) {

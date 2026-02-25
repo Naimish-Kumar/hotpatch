@@ -15,16 +15,17 @@ import (
 
 // ReleaseService handles release management business logic.
 type ReleaseService struct {
-	repo            *repository.ReleaseRepository
-	storage         *storage.S3Storage
-	settingsService *SettingsService
-	securityService *SecurityService
-	redis           *redis.Client
+	repo              *repository.ReleaseRepository
+	storage           *storage.S3Storage
+	settingsService   *SettingsService
+	securityService   *SecurityService
+	encryptionService *EncryptionService
+	redis             *redis.Client
 }
 
 // NewReleaseService creates a new ReleaseService.
-func NewReleaseService(repo *repository.ReleaseRepository, storage *storage.S3Storage, settingsService *SettingsService, securityService *SecurityService, redis *redis.Client) *ReleaseService {
-	return &ReleaseService{repo: repo, storage: storage, settingsService: settingsService, securityService: securityService, redis: redis}
+func NewReleaseService(repo *repository.ReleaseRepository, storage *storage.S3Storage, settingsService *SettingsService, securityService *SecurityService, encryptionService *EncryptionService, redis *redis.Client) *ReleaseService {
+	return &ReleaseService{repo: repo, storage: storage, settingsService: settingsService, securityService: securityService, encryptionService: encryptionService, redis: redis}
 }
 
 func (s *ReleaseService) invalidateCache(ctx context.Context, appID uuid.UUID, channel string) {
